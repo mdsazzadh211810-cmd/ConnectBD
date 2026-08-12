@@ -1,0 +1,546 @@
+import { 
+  Product, 
+  ConnectivityPackage, 
+  UserProfile, 
+  Order, 
+  QuoteRequest, 
+  TechnicianJob, 
+  ComplianceCertificate, 
+  SupportTicket, 
+  AuditLog 
+} from '../types';
+
+export const INITIAL_USERS: UserProfile[] = [
+  {
+    id: 'usr_001',
+    name: 'Rafiqul Islam',
+    email: 'rafiq@abcedu.bd',
+    role: 'customer',
+    organization: 'ABC Education Center, Bogura',
+    phone: '+880 1711-223344',
+    address: 'Station Road, Bogura Sadar',
+    city: 'Bogura',
+    district: 'Bogura',
+    verified: true,
+  },
+  {
+    id: 'usr_002',
+    name: 'Sultana Rahman',
+    email: 'sultana@apextextiles.com',
+    role: 'business',
+    organization: 'Apex Digital Garments Ltd.',
+    phone: '+880 1819-887766',
+    address: 'EPZ Gate 2, Chattogram',
+    city: 'Chattogram',
+    district: 'Chattogram',
+    verified: true,
+  },
+  {
+    id: 'usr_003',
+    name: 'Engineer Ripon Hossain',
+    email: 'ripon.tech@connectbd.com',
+    role: 'technician',
+    organization: 'ConnectBD Field Ops Division',
+    phone: '+880 1912-334455',
+    address: 'Dhanmondi, Dhaka',
+    city: 'Dhaka',
+    district: 'Dhaka',
+    verified: true,
+  },
+  {
+    id: 'usr_004',
+    name: 'Tanvir Ahmed',
+    email: 'ops@connectbd.com',
+    role: 'operations',
+    organization: 'ConnectBD Operations Center',
+    phone: '+880 1622-998877',
+    address: 'Gulshan 1, Dhaka',
+    city: 'Dhaka',
+    district: 'Dhaka',
+    verified: true,
+  },
+  {
+    id: 'usr_005',
+    name: 'Admin User',
+    email: 'admin@connectbd.com',
+    role: 'admin',
+    organization: 'ConnectBD Headquarters',
+    phone: '+880 2-9876543',
+    address: 'Banani Tech Tower, Dhaka',
+    city: 'Dhaka',
+    district: 'Dhaka',
+    verified: true,
+  }
+];
+
+export const INITIAL_PRODUCTS: Product[] = [
+  {
+    id: 'prod_001',
+    name: 'ConnectBD Pro Mesh Gigabit AX3000 Router',
+    category: 'Routers',
+    sku: 'CBD-RTR-AX3000',
+    manufacturer: 'Shenzhen Network Tech Co.',
+    origin: 'Shenzhen, China',
+    priceBDT: 4850,
+    stock: 140,
+    inStock: true,
+    deliveryDays: '2 - 4 Days',
+    warranty: '2 Years Replacement Warranty',
+    rating: 4.8,
+    description: 'High-performance Wi-Fi 6 dual-band gigabit router optimized for dense user environments in Bangladesh. Built with custom firmware for high heat tolerance and rural voltage fluctuations.',
+    specs: {
+      'Wi-Fi Standard': 'Wi-Fi 6 (802.11ax)',
+      'Speed Rating': 'AX3000 (2402 Mbps @ 5GHz + 574 Mbps @ 2.4GHz)',
+      'Ethernet Ports': '1x Gigabit WAN + 4x Gigabit LAN',
+      'Antennas': '6x 6dBi High-Gain External Antennas',
+      'Concurrent Users': 'Up to 128 active devices',
+      'Power Specs': '12V DC / Built-in Surge Protection (4kV)'
+    },
+    image: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=800&q=80',
+    downloadableSpecSheet: 'CBD-RTR-AX3000-Datasheet.pdf'
+  },
+  {
+    id: 'prod_002',
+    name: 'ConnectBD Enterprise Outdoor AP High-Power 1200M',
+    category: 'Outdoor Access Points',
+    sku: 'CBD-AP-OUT1200',
+    manufacturer: 'Guangdong Wireless Optics Inc.',
+    origin: 'Guangzhou, China',
+    priceBDT: 8200,
+    stock: 65,
+    inStock: true,
+    deliveryDays: '3 - 5 Days',
+    warranty: '2 Years Replacement Warranty',
+    rating: 4.9,
+    description: 'Weatherproof IP67 rated outdoor access point for community centers, schools, playfields, and open markets. Delivers long-range dual-band coverage up to 300 meters line-of-sight.',
+    specs: {
+      'Enclosure Rating': 'IP67 Weatherproof & UV-Resistant Plastoc',
+      'Coverage Distance': 'Up to 300 meters open line-of-sight',
+      'Power Option': 'PoE (Power over Ethernet) 48V IEEE 802.3at',
+      'Operating Temp': '-30°C to +70°C',
+      'Max Throughput': '1200 Mbps (Dual Band)',
+      'Mounting': 'Pole & Wall Mount Kit Included'
+    },
+    image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'prod_003',
+    name: 'ConnectBD Optical ONU GPON/EPON Gigabit Terminal',
+    category: 'Optical Networking',
+    sku: 'CBD-ONU-G100',
+    manufacturer: 'FiberLink Telecom Shenzhen',
+    origin: 'Shenzhen, China',
+    priceBDT: 1450,
+    stock: 310,
+    inStock: true,
+    deliveryDays: '1 - 3 Days',
+    warranty: '1 Year Full Replacement',
+    rating: 4.7,
+    description: 'Reliable fiber optic terminal unit compatible with major Bangladesh fiber backhaul providers (GPON/EPON auto-negotiation). Compact, heat-dissipating aluminum base.',
+    specs: {
+      'Optical Interface': 'SC/UPC Single Mode Fiber',
+      'LAN Interface': '1x Gigabit RJ45 Ethernet Port',
+      'Standard Compatibility': 'ITU-T G.984.x / IEEE 802.3ah',
+      'Power Consumption': '< 3W low power design'
+    },
+    image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'prod_004',
+    name: 'ConnectBD Managed 16-Port Gigabit PoE+ Switch',
+    category: 'Network Switches',
+    sku: 'CBD-SW-16POE',
+    manufacturer: 'Zhejiang NetSystem Technology',
+    origin: 'Hangzhou, China',
+    priceBDT: 14200,
+    stock: 28,
+    inStock: true,
+    deliveryDays: '2 - 4 Days',
+    warranty: '3 Years Warranty',
+    rating: 4.9,
+    description: 'Smart managed 16-port PoE+ rackmount switch with 2 SFP optical uplink ports. Powers access points, IP cameras, and IP phones across institutional networks.',
+    specs: {
+      'Total PoE Budget': '250W Total High-Capacity Output',
+      'PoE Ports': '16x Gigabit RJ45 802.3af/at Ports',
+      'Uplink Ports': '2x 1.25G SFP Fiber Uplink Slots',
+      'VLAN Support': 'Port-Based & 802.1Q Tag VLANs',
+      'Management': 'Web GUI / SNMP / Command Line Interface'
+    },
+    image: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'prod_005',
+    name: 'ConnectBD High-Gain 5GHz 23dBi Dish CPE Antenna',
+    category: 'CPE / Antennas',
+    sku: 'CBD-CPE-5G23',
+    manufacturer: 'Chengdu RF Microwave Ltd.',
+    origin: 'Chengdu, China',
+    priceBDT: 6900,
+    stock: 45,
+    inStock: true,
+    deliveryDays: '3 - 5 Days',
+    warranty: '2 Years Replacement Warranty',
+    rating: 4.8,
+    description: 'Long-distance wireless bridge CPE for connecting remote campuses, river islands (Chars), or rural clinics back to a central fiber node up to 15 kilometers away.',
+    specs: {
+      'Frequency Band': '5.1GHz - 5.8GHz Wireless Unlicensed',
+      'Antenna Gain': '23dBi High Directional Grid Dish',
+      'Max Distance': 'Up to 15km line-of-sight wireless link',
+      'Throughput': 'Up to 450 Mbps real aggregate throughput'
+    },
+    image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'prod_006',
+    name: 'ConnectBD Smart Lithium Backup Power Station (4-Hour Load)',
+    category: 'Power & Backup',
+    sku: 'CBD-PWR-Li4H',
+    manufacturer: 'Jiangsu Energy Storage Technology',
+    origin: 'Suzhou, China',
+    priceBDT: 11500,
+    stock: 50,
+    inStock: true,
+    deliveryDays: '2 - 3 Days',
+    warranty: '2 Years Lithium Battery Guarantee',
+    rating: 4.9,
+    description: 'Dedicated LiFePO4 battery backup system designed specifically for networking gear during load-shedding. Keeps routers, ONUs, and APs online seamlessly.',
+    specs: {
+      'Battery Type': 'Grade-A LiFePO4 Lithium Iron Phosphate',
+      'Capacity': '180Wh (15,000mAh @ 12V)',
+      'Output Ports': '4x 12V DC + 1x 48V Passive PoE + 2x USB',
+      'UPS Switch Time': '< 0ms Instant zero-interruption switchover'
+    },
+    image: 'https://images.unsplash.com/photo-1609592807981-d00d4df7140e?auto=format&fit=crop&w=800&q=80'
+  }
+];
+
+export const INITIAL_PACKAGES: ConnectivityPackage[] = [
+  {
+    id: 'pkg_001',
+    name: 'ConnectBD Community Basic',
+    category: 'Community',
+    startingPriceBDT: 12500,
+    monthlyServiceBDT: 1500,
+    recommendedUsers: '20 - 50 Active Users',
+    coverageArea: '1,500 - 3,000 Sq Ft',
+    includedHardware: [
+      '1x ConnectBD AX3000 Gigabit Router',
+      '1x High-Gain Outdoor Access Point',
+      '1x Optical GPON ONU Unit',
+      '1x Lithium Battery Backup System (4-Hour)'
+    ],
+    deploymentTime: '1 - 2 Business Days',
+    supportPeriod: '1 Year Managed Tech Support',
+    warranty: '2 Years Hardware Replacement',
+    highlights: [
+      'Ideal for village hubs, community centers & local union parishads',
+      'Uninterrupted internet during grid load-shedding',
+      'Centralized guest portal with speed caps',
+      'Includes local physical installation & cable routing'
+    ],
+    notIncluded: ['Custom tower construction', 'Secondary ISP redundancy line'],
+    complexity: 'Low',
+    popular: true
+  },
+  {
+    id: 'pkg_002',
+    name: 'ConnectBD Community Pro',
+    category: 'Community',
+    startingPriceBDT: 28500,
+    monthlyServiceBDT: 3200,
+    recommendedUsers: '100 - 250 Active Users',
+    coverageArea: '5,000 - 10,000 Sq Ft',
+    includedHardware: [
+      '1x Main ConnectBD Gigabit Core Gateway',
+      '3x High-Power Outdoor IP67 Access Points',
+      '1x 8-Port Managed PoE Switch',
+      '1x High-Capacity LiFePO4 Battery Station'
+    ],
+    deploymentTime: '2 - 3 Business Days',
+    supportPeriod: '2 Years Managed Tech Support',
+    warranty: '2 Years Hardware Replacement',
+    highlights: [
+      'Wide area outdoor coverage for public bazaars & community grounds',
+      'Multi-SSID isolation for village administration vs public users',
+      'Remote cloud monitoring & automated alert system'
+    ],
+    notIncluded: ['High-capacity solar array (optional add-on)'],
+    complexity: 'Medium'
+  },
+  {
+    id: 'pkg_003',
+    name: 'ConnectBD Education Campus Network',
+    category: 'Education',
+    startingPriceBDT: 45000,
+    monthlyServiceBDT: 5000,
+    recommendedUsers: '300 - 800 Campus Students & Staff',
+    coverageArea: 'Multi-Building School/College Campus',
+    includedHardware: [
+      '1x ConnectBD Enterprise Gateway Router',
+      '4x Indoor High-Density Wi-Fi Access Points',
+      '2x Outdoor Long-Range Access Points',
+      '1x 16-Port Managed PoE+ Switch',
+      '1x Lithium Uninterruptible Power Supply'
+    ],
+    deploymentTime: '3 - 5 Business Days',
+    supportPeriod: '3 Years Dedicated Educational SLA Support',
+    warranty: '3 Years Hardware Warranty',
+    highlights: [
+      'Digital classroom & lab-optimized bandwidth prioritization',
+      'Content filtering & web security rules for schools',
+      'Dedicated Student Wi-Fi vs Faculty Wi-Fi segmentation',
+      'Complete technician deployment with cable trunking'
+    ],
+    notIncluded: ['Long-distance inter-city fiber trenching'],
+    complexity: 'High',
+    popular: true
+  },
+  {
+    id: 'pkg_004',
+    name: 'ConnectBD Business Pro',
+    category: 'Business',
+    startingPriceBDT: 32000,
+    monthlyServiceBDT: 4000,
+    recommendedUsers: '50 - 150 Office / Hotel / Factory Users',
+    coverageArea: '4,000 - 8,000 Sq Ft Office Space',
+    includedHardware: [
+      '1x Multi-WAN Load Balancing Core Router',
+      '3x Indoor Wi-Fi 6 Access Points',
+      '1x 8-Port PoE Switch',
+      '1x Smart UPS Power Unit'
+    ],
+    deploymentTime: '2 - 3 Business Days',
+    supportPeriod: '2 Years 24/7 Enterprise Support',
+    warranty: '2 Years Hardware Replacement',
+    highlights: [
+      'Dual-ISP automatic failover for zero business downtime',
+      'Branded guest captive login portal for hotels/cafes',
+      'Employee department VLAN network separation'
+    ],
+    notIncluded: ['Primary ISP fiber monthly bandwidth fee'],
+    complexity: 'Medium'
+  },
+  {
+    id: 'pkg_005',
+    name: 'ConnectBD Remote Hybrid Link',
+    category: 'Remote',
+    startingPriceBDT: 58000,
+    monthlyServiceBDT: 6500,
+    recommendedUsers: 'Up to 200 Remote Site Users',
+    coverageArea: 'Remote Char, Island, or Off-Grid Facility',
+    includedHardware: [
+      '2x 5GHz 23dBi Directional CPE Dish Antennas (Pair)',
+      '1x High-Power Outdoor Gateway AP',
+      '1x Solar-Powered Backup Power Enclosure',
+      '1x Heavy-Duty Mounting Hardware'
+    ],
+    deploymentTime: '4 - 7 Business Days',
+    supportPeriod: '2 Years Remote Link Monitoring',
+    warranty: '2 Years Replacement Warranty',
+    highlights: [
+      'Overcomes lack of physical fiber cables using 15km wireless bridge',
+      'Integrated solar battery backup for zero grid dependance',
+      'Engineered for harsh riverine weather & high humidity'
+    ],
+    notIncluded: ['High-mast tower fabrication above 30ft'],
+    complexity: 'High'
+  }
+];
+
+export const INITIAL_QUOTES: QuoteRequest[] = [
+  {
+    id: 'q_001',
+    quoteNumber: 'CBD-QT-2026-0891',
+    userId: 'usr_001',
+    customerName: 'Rafiqul Islam',
+    customerType: 'Education',
+    organizationName: 'ABC Education Center, Bogura',
+    location: 'Station Road, Bogura Sadar, Bogura District',
+    numberOfUsers: 450,
+    coverageAreaSqFt: 18000,
+    desiredBandwidthMbps: 100,
+    numberOfBuildings: 3,
+    preferredBackhaul: 'Fiber',
+    budgetRangeBDT: '40,000 - 60,000 BDT',
+    existingISP: 'Local District Fiber Cable',
+    expectedDate: '2026-08-25',
+    sitePlanUploaded: true,
+    additionalNotes: 'We need reliable Wi-Fi across our 3 school buildings and computer lab. Power cuts happen 2-3 times daily, so lithium battery backup is essential.',
+    status: 'Quote Prepared',
+    estimatedCostBDT: 49500,
+    assignedEngineer: 'Tanvir Ahmed (ConnectBD Engineering)',
+    createdAt: '2026-08-10'
+  }
+];
+
+export const INITIAL_ORDERS: Order[] = [
+  {
+    id: 'ord_001',
+    orderNumber: 'CBD-ORD-9021',
+    userId: 'usr_001',
+    customerName: 'Rafiqul Islam',
+    customerEmail: 'rafiq@abcedu.bd',
+    organizationName: 'ABC Education Center, Bogura',
+    items: [
+      {
+        type: 'package',
+        id: 'pkg_003',
+        item: INITIAL_PACKAGES[2], // Education Campus Network
+        quantity: 1,
+        includeInstallation: true
+      }
+    ],
+    subtotalBDT: 45000,
+    installationFeeBDT: 4500,
+    estimatedTaxBDT: 0,
+    totalBDT: 49500,
+    status: 'Technician Assigned',
+    deliveryAddress: {
+      district: 'Bogura',
+      thana: 'Bogura Sadar',
+      address: 'Station Road, Campus Building 1, Bogura',
+      contactPhone: '+880 1711-223344'
+    },
+    paymentStatus: 'Paid',
+    paymentMethod: 'bKash/Nagad',
+    createdAt: '2026-08-11',
+    estimatedDeliveryDate: '2026-08-15',
+    technicianId: 'usr_003',
+    trackingSteps: [
+      { title: 'Order & Plan Confirmed', date: 'Aug 11, 2026', completed: true },
+      { title: 'Hardware Sourced & QA Tested', date: 'Aug 12, 2026', completed: true },
+      { title: 'Customs & Bangladesh Warehouse Dispatch', date: 'Aug 12, 2026', completed: true },
+      { title: 'Field Technician Assigned (Engr. Ripon)', date: 'Aug 12, 2026', completed: true, current: true },
+      { title: 'On-Site Installation & Cabling', date: 'Target Aug 14', completed: false },
+      { title: 'Final Verification & Activation', date: 'Target Aug 15', completed: false }
+    ]
+  }
+];
+
+export const INITIAL_TECHNICIAN_JOBS: TechnicianJob[] = [
+  {
+    id: 'job_001',
+    jobId: 'CBD-JOB-7082',
+    orderId: 'ord_001',
+    customerName: 'Rafiqul Islam',
+    customerPhone: '+880 1711-223344',
+    organizationName: 'ABC Education Center, Bogura',
+    address: 'Station Road, Campus Building 1, Bogura',
+    district: 'Bogura',
+    serviceType: 'New Installation',
+    status: 'Assigned',
+    scheduledDate: '2026-08-14',
+    requirements: [
+      'Install 1x Gateway Core Router in Server Closet',
+      'Mount 4x Indoor Access Points in Classrooms 101, 102, 201, 202',
+      'Mount 2x IP67 Outdoor Access Points on Campus Field Poles',
+      'Connect 16-Port Managed Switch & LiFePO4 Battery Station',
+      'Run outdoor UV-resistant Cat6 Ethernet cabling with conduits',
+      'Test Wi-Fi coverage speed & log equipment serial numbers'
+    ],
+    equipmentList: [
+      { sku: 'CBD-RTR-AX3000', name: 'ConnectBD Core Router', quantity: 1 },
+      { sku: 'CBD-AP-OUT1200', name: 'Outdoor IP67 Access Point', quantity: 2 },
+      { sku: 'CBD-SW-16POE', name: '16-Port Managed PoE Switch', quantity: 1 },
+      { sku: 'CBD-PWR-Li4H', name: 'Lithium Battery Station', quantity: 1 }
+    ]
+  }
+];
+
+export const INITIAL_CERTIFICATES: ComplianceCertificate[] = [
+  {
+    id: 'cert_001',
+    title: 'Trade License & Commercial Registration',
+    category: 'Business Registration',
+    issuingAuthority: 'Dhaka North City Corporation (DNCC)',
+    certificateNumber: 'TRAD/DNCC/019283/2025',
+    issueDate: '2025-07-01',
+    expiryDate: '2026-06-30',
+    verificationStatus: 'Verified',
+    verificationLink: 'https://dncc.gov.bd/verify-license',
+    description: 'Official Bangladesh business operating permit for technology sourcing, equipment trading, and network services installation.'
+  },
+  {
+    id: 'cert_002',
+    title: 'BTRC Equipment Sourcing & Service Authorization',
+    category: 'BTRC Credential',
+    issuingAuthority: 'Bangladesh Telecommunication Regulatory Commission (BTRC)',
+    certificateNumber: 'BTRC-APP-2026-99411',
+    issueDate: '2026-01-15',
+    expiryDate: '2027-01-14',
+    verificationStatus: 'Pending Verification',
+    verificationLink: 'http://www.btrc.gov.bd/license-verification',
+    description: 'Regulatory submission and authorization paperwork for importing cross-border Wi-Fi and networking equipment under BTRC guidelines. Status: Paperwork verified under processing.'
+  },
+  {
+    id: 'cert_003',
+    title: 'Customs Import-Export Identification Certificate (BIN)',
+    category: 'Import/Export',
+    issuingAuthority: 'National Board of Revenue (NBR), Bangladesh',
+    certificateNumber: 'BIN-004829104-0102',
+    issueDate: '2025-08-10',
+    expiryDate: '2028-08-09',
+    verificationStatus: 'Verified',
+    description: 'Registered VAT and Customs Import identification permit enabling official cross-border shipping of network hardware from China.'
+  },
+  {
+    id: 'cert_004',
+    title: 'Shenzhen Hardware Partner Quality Inspection (ISO 9001)',
+    category: 'Supplier Quality',
+    issuingAuthority: 'China Quality Certification Center (CQC)',
+    certificateNumber: 'CQC-ISO9001-SZ-88392',
+    issueDate: '2024-11-20',
+    expiryDate: '2027-11-19',
+    verificationStatus: 'Verified',
+    description: 'Factory production QA & electrical safety certification for supplier manufacturing facilities in Shenzhen, China.'
+  }
+];
+
+export const INITIAL_SUPPORT_TICKETS: SupportTicket[] = [
+  {
+    id: 'tkt_001',
+    ticketNumber: 'TKT-2026-1042',
+    userId: 'usr_001',
+    customerName: 'Rafiqul Islam',
+    subject: 'Pre-installation survey details for ABC Education Center',
+    category: 'Technician Visit',
+    priority: 'Medium',
+    status: 'Open',
+    createdAt: '2026-08-11',
+    messages: [
+      {
+        sender: 'customer',
+        senderName: 'Rafiqul Islam',
+        timestamp: '2026-08-11 10:15 AM',
+        text: 'Hello, our order CBD-ORD-9021 is scheduled for technician visit on Aug 14. Will the technician bring extra Ethernet cable if we need to extend the link to Building 3?'
+      },
+      {
+        sender: 'agent',
+        senderName: 'Tanvir (ConnectBD Support)',
+        timestamp: '2026-08-11 11:00 AM',
+        text: 'Assalamu Alaikum Mr. Rafiqul. Yes! Engineer Ripon will carry an additional 100-meter outdoor Cat6 roll and cable conduit fittings during the visit.'
+      }
+    ]
+  }
+];
+
+export const INITIAL_AUDIT_LOGS: AuditLog[] = [
+  {
+    id: 'log_001',
+    timestamp: '2026-08-12 08:30:15',
+    userEmail: 'admin@connectbd.com',
+    role: 'admin',
+    action: 'System Boot & Verification Audit',
+    details: 'Verified database schemas, security roles, and active cross-border supplier links.',
+    ipAddress: '103.114.172.4'
+  },
+  {
+    id: 'log_002',
+    timestamp: '2026-08-11 14:22:00',
+    userEmail: 'ops@connectbd.com',
+    role: 'operations',
+    action: 'Technician Dispatch Assigned',
+    details: 'Assigned Engr. Ripon Hossain to Job CBD-JOB-7082 for Order CBD-ORD-9021.',
+    ipAddress: '103.114.172.10'
+  }
+];

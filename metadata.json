@@ -1,0 +1,6 @@
+{
+  "name": "ConnectBD",
+  "description": "China–Bangladesh cross-border connectivity technology platform offering networking hardware, connectivity packages, local deployment, managed services, and Smart Network Planning.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

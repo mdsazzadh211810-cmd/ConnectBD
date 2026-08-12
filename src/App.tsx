@@ -575,20 +575,7 @@ export default function App() {
         onOpenAuthModal={() => setAuthModalOpen(true)}
       />
 
-      {/* Auth Modal Trigger Banner */}
-      <div className="bg-slate-900 border-b border-slate-800 text-slate-300 text-xs py-1 px-4 flex items-center justify-between">
-        <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
-          <span className="text-slate-400">
-            Authenticated Session: <strong className="text-white">{currentUser.name}</strong> ({currentUser.email})
-          </span>
-          <button
-            onClick={() => setAuthModalOpen(true)}
-            className="text-blue-400 hover:text-blue-300 font-bold underline ml-2"
-          >
-            Manage Auth / Login / Signup
-          </button>
-        </div>
-      </div>
+
 
       {/* Main Page Render */}
       <div className="flex-1">

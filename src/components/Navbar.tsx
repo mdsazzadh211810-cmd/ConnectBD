@@ -58,6 +58,14 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'support', label: language === 'EN' ? 'Support' : 'সাপোর্ট' }
   ];
 
+  if (currentUser.role === 'admin') {
+    mainNavItems.push({
+      id: 'admin-dashboard',
+      label: language === 'EN' ? 'Admin / Inventory' : 'অ্যাডমিন / ইনভেন্টরি',
+      isSpecial: true // Give it a special highlighted style
+    });
+  }
+
   const getDashboardTab = () => {
     switch (currentUser.role) {
       case 'technician': return 'technician-dashboard';

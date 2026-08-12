@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { GoogleGenAI, Type } from '@google/genai';
 import { db, UserDBRecord, StoredCertificate } from './src/server/db.js';
 import { checkAdminRoleInFirestore, syncUserToCloud } from './src/server/firestore.js';
@@ -327,7 +327,7 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
   res.json({ success: true, message: 'Logged out successfully.' });
 });
 
-app.post('/api/auth/forgot-password', (req: Request, res: Response) => {
+app.post('/api/auth/forgot-password', async (req: Request, res: Response) => {
   try {
     const parsed = forgotPasswordSchema.parse(req.body);
     const user = db.findUserByEmail(parsed.email);
@@ -335,6 +335,32 @@ app.post('/api/auth/forgot-password', (req: Request, res: Response) => {
     if (user) {
       const resetToken = db.createPasswordResetToken(user.email);
       db.addAuditLog(user.email, user.role, 'Password Reset Requested', `Reset token generated`, getClientIp(req));
+      
+      if (process.env.RESEND_API_KEY) {
+        try {
+          const resend = new Resend(process.env.RESEND_API_KEY);
+          await resend.emails.send({
+            from: 'Security <onboarding@resend.dev>',
+            to: user.email,
+            subject: 'ConnectBD Password Reset Request',
+            html: `
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2>Password Reset Request</h2>
+                <p>Hi ${user.name},</p>
+                <p>We received a request to reset your password. Use the verification code below to proceed:</p>
+                <div style="background-color: #f3f4f6; padding: 12px; font-size: 20px; font-weight: bold; text-align: center; letter-spacing: 2px; border-radius: 6px; margin: 20px 0;">
+                  ${resetToken}
+                </div>
+                <p>If you did not request this, please ignore this email.</p>
+              </div>
+            `
+          });
+          console.log(`[Email] Sent password reset email to ${user.email}`);
+        } catch (emailErr) {
+          console.error('[Email] Failed to send password reset email:', emailErr);
+        }
+      }
+
       return res.json({ 
         success: true, 
         message: 'Password reset token generated.', 
@@ -749,6 +775,80 @@ app.get('/api/admin/users', requireAuth as any, requireRole('admin') as any, (re
     return safeUser;
   });
   res.json({ users });
+});
+
+app.patch('/api/admin/orders/:id/status', requireAuth as any, requireRole('admin', 'operations') as any, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const order = db.findOrderById(id);
+    
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    const previousStatus = order.status;
+    order.status = status;
+    
+    // Add a tracking step if not already present
+    if (!order.trackingSteps.some(s => s.title === status)) {
+      order.trackingSteps.push({
+        title: status,
+        date: new Date().toISOString().split('T')[0],
+        completed: true,
+        current: true
+      });
+      // Mark others as not current
+      order.trackingSteps.forEach(s => { if (s.title !== status) s.current = false; });
+    } else {
+      order.trackingSteps.forEach(s => {
+        if (s.title === status) {
+          s.current = true;
+          s.completed = true;
+        } else {
+          s.current = false;
+        }
+      });
+    }
+
+    db.updateOrder(id, order);
+
+    db.addAuditLog(
+      req.user!.email,
+      req.user!.role,
+      'Order Status Updated',
+      `Order ${order.orderNumber} updated from ${previousStatus} to ${status}`,
+      getClientIp(req)
+    );
+
+    // Send Email Notification if Shipped or Completed
+    if (status === 'Shipped' || status === 'Completed') {
+      if (process.env.RESEND_API_KEY) {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+          from: 'Orders <onboarding@resend.dev>',
+          to: order.customerEmail,
+          subject: `Order ${order.orderNumber} Status Update: ${status}`,
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2>Your order has been ${status}!</h2>
+              <p>Hi ${order.customerName},</p>
+              <p>We wanted to let you know that your order <strong>${order.orderNumber}</strong> is now marked as <strong>${status}</strong>.</p>
+              <p>Thank you for choosing our services.</p>
+            </div>
+          `
+        });
+        console.log(`[Email] Sent notification to ${order.customerEmail} for order ${order.orderNumber}`);
+      } else {
+        console.warn('[Email] RESEND_API_KEY is not set. Skipping email notification.');
+      }
+    }
+
+    res.json({ success: true, order });
+  } catch (err: any) {
+    console.error('Order status update error:', err);
+    res.status(500).json({ success: false, message: err.message || 'Update failed' });
+  }
 });
 
 app.patch('/api/admin/users/:id/role', requireAuth as any, requireRole('admin') as any, async (req: AuthenticatedRequest, res: Response) => {

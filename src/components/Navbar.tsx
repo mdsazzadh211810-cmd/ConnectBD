@@ -104,7 +104,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           {mainNavItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                if (activeTab === item.id) {
+                  window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+                } else {
+                  setActiveTab(item.id);
+                }
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm transition-all flex items-center ${
                 activeTab === item.id
                   ? 'bg-blue-600 text-white font-bold shadow-md'
@@ -134,7 +140,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               {moreItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    if (activeTab === item.id) {
+                      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+                    } else {
+                      setActiveTab(item.id);
+                    }
+                  }}
                   className={`block w-full text-left px-4 py-2 text-xs xl:text-sm transition-colors ${
                     activeTab === item.id 
                       ? 'bg-blue-50 text-blue-700 font-bold' 
@@ -224,7 +236,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 key={item.id}
                 onClick={() => {
-                  setActiveTab(item.id);
+                  if (activeTab === item.id) {
+                    window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+                  } else {
+                    setActiveTab(item.id);
+                  }
                   setMobileMenuOpen(false);
                 }}
                 className={`px-3 py-2 rounded-lg text-xs font-medium text-left ${

@@ -83,6 +83,11 @@ export default function App() {
     fetchBackendData();
   }, []);
 
+  // Scroll to top when tab changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [activeTab]);
+
   const fetchSession = async () => {
     try {
       const res = await fetch('/api/auth/me');
@@ -328,8 +333,23 @@ export default function App() {
   };
 
   // Admin / Operations Handlers
-  const handleUpdateOrderStatus = (orderId: string, status: Order['status']) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+  const handleUpdateOrderStatus = async (orderId: string, status: Order['status']) => {
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      const data = await res.json();
+      if (data.success && data.order) {
+        setOrders(prev => prev.map(o => o.id === orderId ? data.order : o));
+      } else {
+        alert(data.message || 'Failed to update order status');
+      }
+    } catch (err) {
+      console.error('Failed to update order status', err);
+      alert('Error updating order status');
+    }
   };
 
   const handleUpdateJobStatus = async (jobId: string, status: TechnicianJob['status'], report?: string) => {

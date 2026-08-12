@@ -12,7 +12,8 @@ import {
   CheckCircle2, 
   Clock, 
   TrendingUp, 
-  Plus 
+  Plus,
+  Download
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -86,6 +87,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } finally {
       setUpdatingUserId(null);
     }
+  };
+
+  const downloadCSV = (filename: string, headers: string[], data: any[][]) => {
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportInventory = () => {
+    const headers = ['SKU', 'Product Name', 'Category', 'Current Stock', 'Price (BDT)', 'In Stock'];
+    const data = products.map(p => [p.sku, p.name, p.category, p.stock, p.priceBDT, p.inStock ? 'Yes' : 'No']);
+    downloadCSV(`inventory_analytics_${new Date().toISOString().split('T')[0]}.csv`, headers, data);
+  };
+
+  const handleExportAuditLogs = () => {
+    const headers = ['Timestamp', 'User Email', 'Action', 'Details'];
+    const data = auditLogs.map(log => [log.timestamp, log.userEmail, log.action, log.details]);
+    downloadCSV(`audit_logs_${new Date().toISOString().split('T')[0]}.csv`, headers, data);
   };
 
   // Product Modal State
@@ -245,7 +275,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <th className="p-3">Location</th>
                     <th className="p-3">Amount (BDT)</th>
                     <th className="p-3">Payment</th>
-                    <th className="p-3">Tracking Stage</th>
+                    <th className="p-3">Order Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80">
@@ -257,9 +287,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <td className="p-3 font-bold text-white">৳{o.totalBDT.toLocaleString('en-IN')}</td>
                       <td className="p-3 text-emerald-400 font-medium">{o.paymentStatus}</td>
                       <td className="p-3">
-                        <span className="px-2.5 py-1 bg-cyan-950 text-cyan-300 text-[10px] font-bold rounded border border-cyan-800">
-                          {o.trackingSteps.find((s) => s.current)?.title || 'Dispatched'}
-                        </span>
+                        <select
+                          value={o.status}
+                          onChange={(e) => onUpdateOrderStatus?.(o.id, e.target.value)}
+                          className="bg-slate-950 border border-slate-700 text-slate-200 rounded p-1.5 text-xs outline-none focus:border-cyan-500 max-w-[150px]"
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Paid">Paid</option>
+                          <option value="Supplier Procurement (China)">Supplier Procurement (China)</option>
+                          <option value="In Transit">In Transit</option>
+                          <option value="Customs Clearance">Customs Clearance</option>
+                          <option value="Bangladesh Warehouse">Bangladesh Warehouse</option>
+                          <option value="Shipped">Shipped</option>
+                          <option value="Technician Assigned">Technician Assigned</option>
+                          <option value="Installation In Progress">Installation In Progress</option>
+                          <option value="Completed">Completed</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
                       </td>
                     </tr>
                   ))}
@@ -541,7 +585,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* Audit Trail */}
         {activeAdminTab === 'audit' && (
           <div className="bg-slate-900 rounded-3xl border border-slate-800 p-6 space-y-4 shadow-xl">
-            <h3 className="text-base font-bold text-white">System Operations Audit Log</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h3 className="text-base font-bold text-white">System Operations Audit Log</h3>
+              <button
+                onClick={handleExportAuditLogs}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-1.5 self-start sm:self-auto border border-slate-700"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export CSV</span>
+              </button>
+            </div>
             <div className="bg-slate-950 rounded-2xl border border-slate-800 divide-y divide-slate-800/80 text-xs font-mono">
               {auditLogs.map((log) => (
                 <div key={log.id} className="p-3 flex justify-between items-center">
@@ -581,7 +634,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           {u.organization && <div className="text-[10px] text-slate-400">{u.organization}</div>}
                         </td>
                         <td className="p-3 text-slate-300">{u.email}</td>
-                        <td className="p-3 text-slate-500">{new Date(u.createdAt).toLocaleDateString()}</td>
+                        <td className="p-3 text-slate-500">{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'Unknown'}</td>
                         <td className="p-3">
                           <div className="flex items-center space-x-2">
                             <select
@@ -610,9 +663,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* Inventory Analytics */}
         {activeAdminTab === 'analytics' && (
           <div className="bg-slate-900 rounded-3xl border border-slate-800 p-6 space-y-6 shadow-xl">
-            <div>
-              <h3 className="text-base font-bold text-white">Inventory Analytics & Trends</h3>
-              <p className="text-xs text-slate-400">Visualize current stock levels against recommended reorder thresholds.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold text-white">Inventory Analytics & Trends</h3>
+                <p className="text-xs text-slate-400">Visualize current stock levels against recommended reorder thresholds.</p>
+              </div>
+              <button
+                onClick={handleExportInventory}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-1.5 self-start sm:self-auto border border-slate-700"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export CSV</span>
+              </button>
             </div>
             
             <div className="h-[400px] w-full pt-4">

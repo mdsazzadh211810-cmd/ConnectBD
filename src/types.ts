@@ -80,6 +80,7 @@ export type OrderStatus =
   | 'In Transit'
   | 'Customs Clearance'
   | 'Bangladesh Warehouse'
+  | 'Shipped'
   | 'Technician Assigned'
   | 'Installation In Progress'
   | 'Completed'

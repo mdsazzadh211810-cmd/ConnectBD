@@ -392,7 +392,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Password</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs font-semibold text-slate-300">Password</label>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setTab('forgot');
+                          setErrorMessage('');
+                          setSuccessMessage('');
+                        }}
+                        className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
                     <div className="relative">
                       <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
                       <input
@@ -482,7 +495,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Password *</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-xs font-semibold text-slate-300">Password *</label>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setTab('forgot');
+                          setErrorMessage('');
+                          setSuccessMessage('');
+                        }}
+                        className="text-[10px] font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
                     <div className="relative">
                       <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
                       <input

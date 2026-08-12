@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import nodemailer from 'nodemailer';
 import { GoogleGenAI, Type } from '@google/genai';
 import { db, UserDBRecord, StoredCertificate } from './src/server/db.js';
 import { checkAdminRoleInFirestore, syncUserToCloud } from './src/server/firestore.js';
@@ -55,6 +56,44 @@ const getGeminiClient = () => {
     },
   });
 };
+
+// --- Password-Free Email Notifications via FormSubmit ---
+async function sendQuoteNotificationEmail(quote: any) {
+  const payload = {
+    _subject: `New Quotation Request - ${quote.organizationName} (${quote.quoteNumber})`,
+    _template: 'box',
+    "Customer Name": quote.customerName,
+    "Organization": quote.organizationName,
+    "Type": quote.customerType,
+    "Location": quote.location,
+    "Users": quote.numberOfUsers,
+    "Sq Ft": quote.coverageAreaSqFt,
+    "Buildings": quote.numberOfBuildings,
+    "Backhaul": quote.preferredBackhaul,
+    "Budget Range": quote.budgetRangeBDT,
+    "Additional Notes": quote.additionalNotes,
+    "Quote ID": quote.quoteNumber
+  };
+
+  const targetEmails = ['mdyanyou@gmail.com', 'hossainmdsazzad@qq.com'];
+
+  try {
+    for (const email of targetEmails) {
+      await fetch(`https://formsubmit.co/ajax/${email}`, {
+        method: "POST",
+        headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      console.log(`Quote notification dispatched to ${email} via FormSubmit.`);
+    }
+  } catch (error) {
+    console.error('Error sending quote notification email via FormSubmit:', error);
+  }
+}
+// ----------------------------------------
 
 // Helper for extracting IP
 const getClientIp = (req: Request) => {
@@ -466,6 +505,9 @@ app.post('/api/quotes', requireAuth as any, (req: AuthenticatedRequest, res: Res
       `Quote ${newQuote.quoteNumber} submitted for ${newQuote.organizationName}`,
       getClientIp(req)
     );
+
+    // Dispatch the email notification to the specified addresses
+    sendQuoteNotificationEmail(newQuote).catch(console.error);
 
     res.json({ success: true, quote: newQuote });
   } catch (err: any) {

@@ -12,6 +12,7 @@ export interface UserProfile {
   district?: string;
   verified: boolean;
   avatar?: string;
+  createdAt?: string;
 }
 
 export type ProductCategory = 
@@ -39,6 +40,7 @@ export interface Product {
   warranty: string;
   rating: number;
   description: string;
+  seoKeywords?: string;
   specs: Record<string, string>;
   image: string;
   downloadableSpecSheet?: string;
@@ -151,20 +153,25 @@ export interface QuoteRequest {
 export interface TechnicianJob {
   id: string;
   jobId: string;
+  jobRef?: string;
   orderId: string;
   customerName: string;
   customerPhone: string;
+  contactPhone?: string;
   organizationName?: string;
   address: string;
   district: string;
+  thana?: string;
   serviceType: 'New Installation' | 'Site Survey' | 'Maintenance' | 'Device Replacement' | 'Network Optimization';
   status: 'Assigned' | 'En Route' | 'In Progress' | 'Evidence Uploaded' | 'Completed' | 'Reported Issue';
   scheduledDate: string;
   requirements: string[];
   equipmentList: { sku: string; name: string; quantity: number; serialNumber?: string }[];
   installedSerialNumbers?: string[];
+  installedDeviceSerials?: string[];
   beforePhotos?: string[];
   afterPhotos?: string[];
+  checklist?: { id: string; label: string; completed: boolean }[];
   technicianReport?: string;
   customerSignatureDate?: string;
 }

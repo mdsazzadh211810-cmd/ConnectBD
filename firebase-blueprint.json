@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "users": {
+      "title": "Users",
+      "description": "Registered customer profiles and internal staff records",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "organization": { "type": "string" },
+        "phone": { "type": "string" },
+        "district": { "type": "string" },
+        "verified": { "type": "boolean" },
+        "passwordHash": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "email", "role"]
+    },
+    "products": {
+      "title": "Products",
+      "description": "Hardware products available in store",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "sku": { "type": "string" },
+        "priceBDT": { "type": "number" },
+        "stock": { "type": "number" },
+        "inStock": { "type": "boolean" },
+        "description": { "type": "string" }
+      },
+      "required": ["name", "priceBDT"]
+    },
+    "orders": {
+      "title": "Orders",
+      "description": "Hardware orders placed by customers",
+      "type": "object",
+      "properties": {
+        "customerEmail": { "type": "string" },
+        "totalBDT": { "type": "number" },
+        "status": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["customerEmail", "totalBDT", "status"]
+    },
+    "quotes": {
+      "title": "Quote Requests",
+      "description": "Enterprise and community broadband quotes",
+      "type": "object",
+      "properties": {
+        "contactName": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "district": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["contactEmail", "district"]
+    },
+    "tickets": {
+      "title": "Support Tickets",
+      "description": "Customer support requests",
+      "type": "object",
+      "properties": {
+        "customerEmail": { "type": "string" },
+        "subject": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["customerEmail", "subject"]
+    },
+    "auditLogs": {
+      "title": "Audit Logs",
+      "description": "Security and activity tracking logs",
+      "type": "object",
+      "properties": {
+        "userEmail": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["userEmail", "action"]
+    }
+  }
+}

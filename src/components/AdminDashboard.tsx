@@ -24,6 +24,7 @@ interface AdminDashboardProps {
   auditLogs?: AuditLog[];
   onUpdateOrderStatus?: (orderId: string, status: any) => void;
   onOpenUploadCertModal?: () => void;
+  onAddProductSuccess?: (product: Product) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -35,11 +36,78 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   certificates = [],
   auditLogs = [],
   onUpdateOrderStatus,
-  onOpenUploadCertModal
+  onOpenUploadCertModal,
+  onAddProductSuccess
 }) => {
   const [activeAdminTab, setActiveAdminTab] = useState<'orders' | 'quotes' | 'inventory' | 'compliance' | 'audit'>('orders');
+  
+  // Product Modal State
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [prodName, setProdName] = useState('');
+  const [prodCategory, setProdCategory] = useState('Routers');
+  const [prodPriceBDT, setProdPriceBDT] = useState('');
+  const [prodDescription, setProdDescription] = useState('');
+  const [prodSeoKeywords, setProdSeoKeywords] = useState('');
+  const [prodStock, setProdStock] = useState('25');
+  const [prodOrigin, setProdOrigin] = useState('Shenzhen Direct');
+  const [prodWarranty, setProdWarranty] = useState('1 Year BTRC Approved Warranty');
+  const [prodImage, setProdImage] = useState('');
+  
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   const totalRevenue = (orders || []).reduce((sum, o) => sum + o.totalBDT, 0);
+
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: prodName,
+          category: prodCategory,
+          priceBDT: parseFloat(prodPriceBDT) || 0,
+          description: prodDescription,
+          seoKeywords: prodSeoKeywords,
+          stock: parseInt(prodStock, 10) || 10,
+          origin: prodOrigin,
+          warranty: prodWarranty,
+          image: prodImage || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to upload product');
+      }
+
+      setSuccessMsg(`Product "${data.product.name}" uploaded successfully with SEO keywords!`);
+      if (onAddProductSuccess) {
+        onAddProductSuccess(data.product);
+      }
+
+      // Reset form
+      setTimeout(() => {
+        setShowProductModal(false);
+        setProdName('');
+        setProdPriceBDT('');
+        setProdDescription('');
+        setProdSeoKeywords('');
+        setSuccessMsg('');
+      }, 1200);
+
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Upload failed');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="bg-slate-950 min-h-screen text-slate-100 py-10">
@@ -136,7 +204,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <tr key={o.id} className="hover:bg-slate-950/60">
                       <td className="p-3 font-mono font-bold text-cyan-400">{o.orderNumber}</td>
                       <td className="p-3 text-white font-semibold">{o.organizationName}</td>
-                      <td className="p-3 text-slate-300">{o.district}</td>
+                      <td className="p-3 text-slate-300">{o.deliveryAddress?.district || 'Dhaka'}</td>
                       <td className="p-3 font-bold text-white">৳{o.totalBDT.toLocaleString('en-IN')}</td>
                       <td className="p-3 text-emerald-400 font-medium">{o.paymentStatus}</td>
                       <td className="p-3">
@@ -192,7 +260,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* Inventory Table */}
         {activeAdminTab === 'inventory' && (
           <div className="bg-slate-900 rounded-3xl border border-slate-800 p-6 space-y-4 shadow-xl">
-            <h3 className="text-base font-bold text-white">Sourced Hardware Inventory Stock</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold text-white">Sourced Hardware Inventory Stock</h3>
+                <p className="text-xs text-slate-400">Admin product catalog, pricing, description & SEO keyword manager</p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowProductModal(true);
+                  setErrorMsg('');
+                  setSuccessMsg('');
+                }}
+                className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-1.5 self-start sm:self-auto"
+              >
+                <Plus className="w-4 h-4" />
+                <span>নতুন প্রোডাক্ট আপলোড (Add Product)</span>
+              </button>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
@@ -200,7 +286,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <th className="p-3">SKU</th>
                     <th className="p-3">Product Name</th>
                     <th className="p-3">Category</th>
-                    <th className="p-3">Origin</th>
+                    <th className="p-3">SEO Keywords</th>
                     <th className="p-3">Stock Level</th>
                     <th className="p-3">Unit Cost (BDT)</th>
                   </tr>
@@ -209,15 +295,175 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {products.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-950/60">
                       <td className="p-3 font-mono font-bold text-cyan-400">{p.sku}</td>
-                      <td className="p-3 text-white font-semibold">{p.name}</td>
+                      <td className="p-3 text-white font-semibold">
+                        {p.name}
+                        <span className="block text-[10px] text-slate-400 line-clamp-1">{p.description}</span>
+                      </td>
                       <td className="p-3 text-slate-300">{p.category}</td>
-                      <td className="p-3 text-slate-400">{p.origin}</td>
+                      <td className="p-3 text-cyan-300/80 font-mono text-[10px]">
+                        {p.seoKeywords || 'hardware, connectivity, broadband'}
+                      </td>
                       <td className="p-3 font-bold text-emerald-400">{p.stock} units</td>
                       <td className="p-3 text-slate-200 font-mono">৳{p.priceBDT.toLocaleString('en-IN')}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Modal for Uploading New Product */}
+        {showProductModal && (
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-cyan-500/30 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
+              
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-lg font-black text-white">নতুন প্রোডাক্ট আপলোড • Upload Product</h3>
+                  <p className="text-xs text-slate-400">Specify details, description, pricing & SEO keywords for search discovery</p>
+                </div>
+                <button
+                  onClick={() => setShowProductModal(false)}
+                  className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1 bg-slate-800 rounded-lg"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {errorMsg && (
+                <div className="p-3 bg-rose-950/80 border border-rose-500/50 rounded-xl text-xs text-rose-200">
+                  {errorMsg}
+                </div>
+              )}
+
+              {successMsg && (
+                <div className="p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-xs text-emerald-200">
+                  {successMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleCreateProduct} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Product Name (প্রোডাক্ট এর নাম) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={prodName}
+                    onChange={(e) => setProdName(e.target.value)}
+                    placeholder="e.g., ConnectBD Ultra Dual-Band Wi-Fi 6 Router"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Category *</label>
+                    <select
+                      value={prodCategory}
+                      onChange={(e) => setProdCategory(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="Routers">Routers</option>
+                      <option value="Wi-Fi Access Points">Wi-Fi Access Points</option>
+                      <option value="Mesh Systems">Mesh Systems</option>
+                      <option value="Outdoor Access Points">Outdoor Access Points</option>
+                      <option value="Network Switches">Network Switches</option>
+                      <option value="Optical Networking">Optical Networking</option>
+                      <option value="CPE / Antennas">CPE / Antennas</option>
+                      <option value="Power & Backup">Power & Backup</option>
+                      <option value="Accessories">Accessories</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Price BDT (প্রাইস - ৳) *</label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={prodPriceBDT}
+                      onChange={(e) => setProdPriceBDT(e.target.value)}
+                      placeholder="e.g., 4500"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Product Description (ডেসক্রিপশন) *</label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={prodDescription}
+                    onChange={(e) => setProdDescription(e.target.value)}
+                    placeholder="Enter full technical overview, bandwidth capacity, and features..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-cyan-300 mb-1">
+                    SEO Keywords (এসইও করার জন্য কিওয়ার্ড) *
+                  </label>
+                  <input
+                    type="text"
+                    value={prodSeoKeywords}
+                    onChange={(e) => setProdSeoKeywords(e.target.value)}
+                    placeholder="e.g. fiber router, Bogura WiFi, BTRC 5G CPE, broadband Bangladesh"
+                    className="w-full bg-slate-950 border border-cyan-800 rounded-xl px-3 py-2 text-xs font-mono text-cyan-300 focus:outline-none focus:border-cyan-400"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    সার্চ ইঞ্জিনে প্রোডাক্ট সহজে খোঁজার জন্য কমা দিয়ে কিওয়ার্ড সেট করুন।
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Stock Level (মজুদ) *</label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={prodStock}
+                      onChange={(e) => setProdStock(e.target.value)}
+                      placeholder="25"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Origin / Import Source</label>
+                    <input
+                      type="text"
+                      value={prodOrigin}
+                      onChange={(e) => setProdOrigin(e.target.value)}
+                      placeholder="Shenzhen Direct Import"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Image URL (Optional)</label>
+                  <input
+                    type="url"
+                    value={prodImage}
+                    onChange={(e) => setProdImage(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-md mt-2"
+                >
+                  {loading ? 'Publishing Product & Updating SEO...' : 'প্রোডাক্ট ডাটাবেজে আপলোড করুন (Publish Product)'}
+                </button>
+              </form>
+
             </div>
           </div>
         )}

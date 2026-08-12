@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
 import { db, UserDBRecord, StoredCertificate } from './src/server/db.js';
+import { checkAdminRoleInFirestore, syncUserToCloud } from './src/server/firestore.js';
 import { 
   AuthenticatedRequest, 
   hashPassword, 
@@ -19,6 +20,7 @@ import {
 import { 
   signupSchema, 
   loginSchema, 
+  createProductSchema,
   forgotPasswordSchema, 
   resetPasswordSchema, 
   createOrderSchema, 
@@ -77,13 +79,54 @@ app.get('/api/health', (req: Request, res: Response) => {
   });
 });
 
+// Verification Code Memory Store
+const verificationCodesMap = new Map<string, { code: string; expiresAt: number }>();
+
 // 2. Auth & Session Management
-app.get('/api/auth/me', (req: AuthenticatedRequest, res: Response) => {
+app.get('/api/auth/me', async (req: AuthenticatedRequest, res: Response) => {
   if (req.user) {
     const { passwordHash, ...safeUser } = req.user;
+    if (safeUser.role === 'admin') {
+      const isFirestoreAdmin = await checkAdminRoleInFirestore(safeUser.id, safeUser.email);
+      if (!isFirestoreAdmin) {
+        console.warn(`[Security Notice] User ${safeUser.email} is not admin in Firestore. Revoking admin status.`);
+        safeUser.role = 'customer';
+      }
+    }
     return res.json({ authenticated: true, user: safeUser });
   }
   res.json({ authenticated: false, user: null });
+});
+
+app.post('/api/auth/send-verification-code', (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ success: false, message: 'Valid email is required.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    verificationCodesMap.set(cleanEmail, { code, expiresAt });
+
+    db.addAuditLog(
+      cleanEmail,
+      'guest',
+      'Verification Code Requested',
+      `Login verification code generated for ${cleanEmail}`,
+      getClientIp(req)
+    );
+
+    res.json({
+      success: true,
+      message: `Verification code generated for ${cleanEmail}`,
+      code // Returned so the frontend can display it in an email simulation banner/toast
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message || 'Failed to send verification code.' });
+  }
 });
 
 app.post('/api/auth/signup', async (req: AuthenticatedRequest, res: Response) => {
@@ -112,19 +155,27 @@ app.post('/api/auth/signup', async (req: AuthenticatedRequest, res: Response) =>
 
     db.addUser(newUser);
 
-    const token = generateToken(newUser);
-    setSessionCookie(res, token);
-
+    // SECURITY UPDATE: Do NOT auto-login or set cookie upon signup!
     db.addAuditLog(
       newUser.email,
       newUser.role,
       'User Signup',
-      `New user account registered for ${newUser.organization || newUser.name}`,
+      `New user account registered for ${newUser.organization || newUser.name}. Awaiting manual login.`,
       getClientIp(req)
     );
 
+    // Generate secure random verification code upon signup
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+    verificationCodesMap.set(parsed.email.toLowerCase(), { code, expiresAt });
+
     const { passwordHash, ...safeUser } = newUser;
-    res.json({ success: true, user: safeUser, token });
+    res.json({
+      success: true,
+      message: 'Account registered successfully! Please log in with your credentials.',
+      user: safeUser,
+      verificationCode: code
+    });
   } catch (err: any) {
     if (err.errors) {
       return res.status(400).json({ success: false, message: err.errors[0]?.message || 'Validation error' });
@@ -144,7 +195,71 @@ app.post('/api/auth/login', async (req: AuthenticatedRequest, res: Response) => 
 
     const isMatch = await comparePassword(parsed.password, user.passwordHash);
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials. Password verification failed.' });
+      return res.status(401).json({ success: false, message: 'Invalid credentials. Incorrect password.' });
+    }
+
+    const EXPECTED_SECRET_KEY = 'S@ZZAD50509';
+
+    // Determine if admin verification flow is triggered
+    const isTargetingAdmin = user.role === 'admin' || 
+                             parsed.email.toLowerCase() === 'admin@connectbd.com' || 
+                             Boolean(parsed.secretKey && parsed.secretKey.trim().length > 0);
+
+    if (isTargetingAdmin) {
+      // 1. Server-side verification check for secret key 'S@ZZAD50509'
+      if (!parsed.secretKey || parsed.secretKey.trim() !== EXPECTED_SECRET_KEY) {
+        db.addAuditLog(
+          user.email,
+          user.role,
+          'Failed Admin Login',
+          'Invalid or missing secret key code provided for admin authentication.',
+          getClientIp(req)
+        );
+        return res.status(401).json({ 
+          success: false, 
+          message: 'Invalid Secret Key Code or credentials provided for Admin Portal.' 
+        });
+      }
+
+      // 2. Ensure admin access by upgrading the role if secret key matches
+      if (user.role !== 'admin') {
+        user.role = 'admin';
+        db.updateUser(user.id, { role: 'admin' });
+      }
+
+      // Check Firestore to make sure the state is consistent.
+      // If they used the master secret key, we force them to be admin.
+      const isFirestoreAdmin = await checkAdminRoleInFirestore(user.id, user.email);
+      if (!isFirestoreAdmin) {
+        db.addAuditLog(
+          user.email,
+          user.role,
+          'Admin Role Upgraded',
+          'User authenticated with master secret key. Upgrading Firestore document to admin role.',
+          getClientIp(req)
+        );
+        // Sync the newly upgraded user to Firestore
+        await syncUserToCloud(user);
+      }
+    } else {
+      // Verification Code check for customers/users
+      const stored = verificationCodesMap.get(user.email.toLowerCase());
+      if (!parsed.verificationCode || !parsed.verificationCode.trim()) {
+        return res.status(401).json({
+          success: false,
+          message: 'Verification Code is required. Please click "Get Verification Code" and enter the 6-digit code.'
+        });
+      }
+
+      if (!stored || stored.expiresAt < Date.now() || stored.code !== parsed.verificationCode.trim()) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid or expired Verification Code. Please request a new code for your email.'
+        });
+      }
+
+      // Code validated! Remove code from store
+      verificationCodesMap.delete(user.email.toLowerCase());
     }
 
     const token = generateToken(user);
@@ -154,7 +269,7 @@ app.post('/api/auth/login', async (req: AuthenticatedRequest, res: Response) => 
       user.email,
       user.role,
       'User Login',
-      'Successful password authentication',
+      `Successful authentication (${user.role.toUpperCase()} Portal)`,
       getClientIp(req)
     );
 
@@ -253,6 +368,53 @@ app.post('/api/auth/switch-role', requireDemoMode, (req: AuthenticatedRequest, r
 // 3. Products & Packages (Database Driven Catalog)
 app.get('/api/products', (req: Request, res: Response) => {
   res.json({ products: db.getProducts() });
+});
+
+app.post('/api/products', requireAuth as any, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = req.user!;
+    if (user.role !== 'admin' && user.role !== 'operations') {
+      return res.status(403).json({ success: false, message: 'Only Admins can upload or add new products.' });
+    }
+
+    const parsed = createProductSchema.parse(req.body);
+
+    const newProduct = {
+      id: `prod_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      name: parsed.name,
+      category: parsed.category as any,
+      sku: parsed.sku || `CBD-SKU-${Math.floor(1000 + Math.random() * 9000)}`,
+      manufacturer: parsed.manufacturer,
+      origin: parsed.origin,
+      priceBDT: parsed.priceBDT,
+      stock: parsed.stock,
+      inStock: parsed.stock > 0,
+      deliveryDays: parsed.deliveryDays,
+      warranty: parsed.warranty,
+      rating: 5.0,
+      description: parsed.description,
+      seoKeywords: parsed.seoKeywords || 'hardware, connectivity, broadband, Bangladesh',
+      specs: (parsed.specs as Record<string, string>) || { 'Model': parsed.name, 'Origin': parsed.origin, 'Warranty': parsed.warranty },
+      image: parsed.image || 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=800&q=80'
+    };
+
+    db.addProduct(newProduct);
+
+    db.addAuditLog(
+      user.email,
+      user.role,
+      'Product Created',
+      `New product uploaded: ${newProduct.name} (৳${newProduct.priceBDT}) with SEO keywords`,
+      getClientIp(req)
+    );
+
+    res.json({ success: true, product: newProduct });
+  } catch (err: any) {
+    if (err.errors) {
+      return res.status(400).json({ success: false, message: err.errors[0]?.message || 'Validation error' });
+    }
+    res.status(500).json({ success: false, message: err.message || 'Failed to upload product' });
+  }
 });
 
 app.get('/api/packages', (req: Request, res: Response) => {

@@ -29,8 +29,11 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
 
   const handleToggleChecklist = (jobId: string, itemIdx: number) => {
     if (!selectedJob) return;
-    const updatedChecklist = [...selectedJob.checklist];
-    updatedChecklist[itemIdx].completed = !updatedChecklist[itemIdx].completed;
+    const checklist = selectedJob.checklist || [];
+    const updatedChecklist = [...checklist];
+    if (updatedChecklist[itemIdx]) {
+      updatedChecklist[itemIdx].completed = !updatedChecklist[itemIdx].completed;
+    }
 
     if (onUpdateJob) {
       onUpdateJob(jobId, { checklist: updatedChecklist });
@@ -39,7 +42,9 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
   };
 
   const handleCompleteJob = (jobId: string) => {
-    onUpdateJob(jobId, { status: 'Completed' });
+    if (onUpdateJob) {
+      onUpdateJob(jobId, { status: 'Completed' });
+    }
     if (selectedJob) {
       setSelectedJob({ ...selectedJob, status: 'Completed' });
     }
@@ -57,7 +62,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
             </div>
             <div>
               <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">Field Operations Center</span>
-              <h1 className="text-xl font-black text-white">Technician Portal — {currentUser.name}</h1>
+              <h1 className="text-xl font-black text-white">Technician Portal — {currentUser?.name || 'Technician'}</h1>
             </div>
           </div>
 
@@ -85,7 +90,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
                   }`}
                 >
                   <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-mono text-cyan-400">{j.jobRef}</span>
+                    <span className="text-[10px] font-mono text-cyan-400">{j.jobRef || j.jobId}</span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
                       j.status === 'Completed' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : 'bg-cyan-950 text-cyan-300 border-cyan-800'
                     }`}>
@@ -96,7 +101,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
                   <h3 className="text-sm font-bold text-white">{j.customerName}</h3>
                   <div className="text-xs text-slate-400 flex items-center space-x-1">
                     <MapPin className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                    <span className="truncate">{j.district} • {j.thana}</span>
+                    <span className="truncate">{j.district} • {j.thana || j.address}</span>
                   </div>
                 </div>
               ))}
@@ -110,9 +115,9 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
                 
                 <div className="flex justify-between items-start border-b border-slate-800 pb-4">
                   <div>
-                    <span className="text-[10px] font-mono text-cyan-400">{selectedJob.jobRef}</span>
+                    <span className="text-[10px] font-mono text-cyan-400">{selectedJob.jobRef || selectedJob.jobId}</span>
                     <h2 className="text-xl font-bold text-white mt-0.5">{selectedJob.customerName}</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Contact Phone: <strong className="text-slate-200">{selectedJob.contactPhone}</strong></p>
+                    <p className="text-xs text-slate-400 mt-0.5">Contact Phone: <strong className="text-slate-200">{selectedJob.contactPhone || selectedJob.customerPhone}</strong></p>
                   </div>
 
                   <span className={`px-3 py-1 text-xs font-bold rounded-full border ${
@@ -127,7 +132,11 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
                   <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">On-Site Field Verification Checklist:</span>
                   
                   <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800 space-y-2.5 text-xs">
-                    {selectedJob.checklist.map((chk, idx) => (
+                    {(selectedJob.checklist || [
+                      { id: '1', label: 'Mount IP67 outdoor Access Point on antenna pole', completed: true },
+                      { id: '2', label: 'Verify fiber optical input signal (-18 dBm)', completed: false },
+                      { id: '3', label: 'Configure local SSID and user portal bandwidth limits', completed: false }
+                    ]).map((chk, idx) => (
                       <label 
                         key={idx}
                         className="flex items-center space-x-3 cursor-pointer p-2 rounded-xl hover:bg-slate-900 text-slate-200 transition-colors"
@@ -139,7 +148,7 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
                           className="w-4 h-4 rounded border-slate-800 bg-slate-900 text-cyan-400 focus:ring-0"
                         />
                         <span className={chk.completed ? 'line-through text-slate-500' : 'text-white'}>
-                          {chk.task}
+                          {chk.label}
                         </span>
                       </label>
                     ))}
@@ -150,8 +159,8 @@ export const TechnicianDashboard: React.FC<TechnicianDashboardProps> = ({
                 <div className="space-y-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Installed Hardware Serial Numbers:</span>
                   <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs font-mono text-cyan-300">
-                    {selectedJob.installedDeviceSerials.length > 0 
-                      ? selectedJob.installedDeviceSerials.join(', ') 
+                    {(selectedJob.installedDeviceSerials || selectedJob.installedSerialNumbers || []).length > 0 
+                      ? (selectedJob.installedDeviceSerials || selectedJob.installedSerialNumbers || []).join(', ') 
                       : 'SN-CBD-2026-9021-A, SN-CBD-2026-9021-B'}
                   </div>
                 </div>

@@ -2,7 +2,13 @@ node_modules/
 build/
 dist/
 coverage/
+uploads/
 .DS_Store
 *.log
+*.tmp
+*.pem
+*.key
+*.crt
 .env*
 !.env.example
+

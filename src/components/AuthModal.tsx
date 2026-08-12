@@ -19,16 +19,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const [tab, setTab] = useState<'login' | 'signup' | 'forgot'>('login');
+  // Default tab is 'signup' for new visitors
+  const [tab, setTab] = useState<'signup' | 'login' | 'admin' | 'forgot'>('signup');
 
   // Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [secretKey, setSecretKey] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState<UserRole>('customer');
   const [organization, setOrganization] = useState('');
   const [phone, setPhone] = useState('');
   const [district, setDistrict] = useState('Dhaka');
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [verificationNotice, setVerificationNotice] = useState('');
 
   // Reset password states
   const [resetToken, setResetToken] = useState('');
@@ -40,6 +46,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  const handleSendCode = async () => {
+    if (!email.trim()) {
+      setErrorMessage('Please enter your email address first.');
+      return;
+    }
+    setErrorMessage('');
+    setVerificationNotice('');
+    setCodeLoading(true);
+
+    try {
+      const res = await fetch('/api/auth/send-verification-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to send verification code.');
+      }
+
+      setVerificationNotice(`Verification code sent to email: [ ${data.code} ]`);
+      setVerificationCode(data.code || '');
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to send code.');
+    } finally {
+      setCodeLoading(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -47,15 +83,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setSuccessMessage('');
 
     try {
+      const payload: any = { email: email.trim().toLowerCase(), password };
+      if (tab === 'admin' || secretKey) {
+        payload.secretKey = secretKey;
+      } else {
+        payload.verificationCode = verificationCode.trim();
+      }
+
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Login failed. Please check your email and password.');
+        throw new Error(data.message || 'Login failed. Please check your credentials and verification code.');
       }
 
       setSuccessMessage('Login successful!');
@@ -72,21 +115,42 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setErrorMessage('');
     setSuccessMessage('');
+
+    if (!name.trim()) {
+      setErrorMessage('Please enter your full name.');
+      return;
+    }
+
+    if (!email.trim()) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+
+    if (password.length < 4) {
+      setErrorMessage('Password must be at least 4 characters long.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage('Passwords do not match. Please ensure both password fields are identical.');
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name,
-          email,
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
           password,
-          role,
-          organization,
-          phone,
+          role: role === 'admin' ? 'customer' : role,
+          organization: organization.trim(),
+          phone: phone.trim(),
           district
         })
       });
@@ -96,11 +160,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         throw new Error(data.message || 'Signup failed.');
       }
 
-      setSuccessMessage('Account created and logged in successfully!');
+      setSuccessMessage(`Account created successfully! A verification code (${data.verificationCode}) has been sent to your email.`);
       setTimeout(() => {
-        onAuthSuccess(data.user);
-        onClose();
-      }, 500);
+        setTab('login');
+        setVerificationNotice(`Code sent to ${email}: ${data.verificationCode}`);
+        setSuccessMessage('Account created. Please log in using the verification code sent to your email.');
+      }, 1500);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to create user account.');
     } finally {
@@ -188,39 +253,82 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Content */}
         <div className="p-6">
           {currentUser && tab !== 'forgot' ? (
-            <div className="text-center py-4 space-y-4">
-              <div className="w-16 h-16 bg-blue-600/20 border border-blue-500/30 rounded-full flex items-center justify-center mx-auto text-blue-400 text-2xl font-bold">
-                {currentUser.name.charAt(0)}
-              </div>
-              <div>
-                <h4 className="text-lg font-bold text-white">{currentUser.name}</h4>
-                <p className="text-xs text-slate-400">{currentUser.email}</p>
-                <div className="inline-flex items-center px-2.5 py-0.5 mt-2 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-400/30 capitalize">
-                  Role: {currentUser.role}
+            <div className="py-2 space-y-4">
+              <div className="text-center space-y-2">
+                <div className="w-16 h-16 bg-blue-600/20 border border-blue-500/40 rounded-full flex items-center justify-center mx-auto text-blue-400 text-2xl font-bold shadow-md shadow-blue-500/10">
+                  {currentUser.name.charAt(0)}
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-white">{currentUser.name}</h4>
+                  <p className="text-xs text-slate-400">{currentUser.email}</p>
+                  <div className="inline-flex items-center space-x-1 px-2.5 py-0.5 mt-2 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                    <CheckCircle className="w-3 h-3 text-emerald-400" />
+                    <span>Email Verified Customer</span>
+                  </div>
                 </div>
               </div>
 
-              {currentUser.organization && (
-                <div className="p-3 bg-slate-800/80 rounded-xl text-xs text-slate-300 border border-slate-700">
-                  <strong>Organization:</strong> {currentUser.organization}
+              {/* Comprehensive User Profile Data Grid */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-3 text-xs text-slate-300">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <span className="text-slate-500 font-medium">Account ID:</span>
+                  <span className="font-mono text-blue-400 font-semibold">{currentUser.id}</span>
                 </div>
-              )}
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <span className="text-slate-500 font-medium">Account Role:</span>
+                  <span className="capitalize font-bold text-white bg-slate-800 px-2 py-0.5 rounded border border-slate-700">{currentUser.role}</span>
+                </div>
+                {currentUser.phone && (
+                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span className="text-slate-500 font-medium">Phone Number:</span>
+                    <span className="text-slate-200 font-medium">{currentUser.phone}</span>
+                  </div>
+                )}
+                {currentUser.district && (
+                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span className="text-slate-500 font-medium">District / City:</span>
+                    <span className="text-slate-200 font-medium">{currentUser.district}</span>
+                  </div>
+                )}
+                {currentUser.organization && (
+                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <span className="text-slate-500 font-medium">Organization:</span>
+                    <span className="text-slate-200 font-medium">{currentUser.organization}</span>
+                  </div>
+                )}
+                {currentUser.createdAt && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 font-medium">Member Since:</span>
+                    <span className="text-slate-400 text-[11px]">{new Date(currentUser.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                  </div>
+                )}
+              </div>
 
-              <button
-                onClick={() => {
-                  onLogout();
-                  onClose();
-                }}
-                className="w-full py-2.5 bg-red-600/20 hover:bg-red-600/30 text-red-300 font-semibold text-xs rounded-xl border border-red-500/30 transition-colors flex items-center justify-center space-x-2"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Log Out of Session</span>
-              </button>
+              <div className="pt-2 space-y-2">
+                <button
+                  onClick={() => {
+                    onLogout();
+                    onClose();
+                  }}
+                  className="w-full py-2.5 bg-red-600/20 hover:bg-red-600/30 text-red-300 font-semibold text-xs rounded-xl border border-red-500/30 transition-colors flex items-center justify-center space-x-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Log Out of Account</span>
+                </button>
+              </div>
             </div>
           ) : (
             <>
               {/* Tab Switcher */}
               <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 mb-6 text-xs">
+                <button
+                  onClick={() => { setTab('signup'); setErrorMessage(''); setSuccessMessage(''); }}
+                  className={`flex-1 py-2 font-semibold rounded-lg transition-all ${
+                    tab === 'signup' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Customer Sign Up
+                </button>
                 <button
                   onClick={() => { setTab('login'); setErrorMessage(''); setSuccessMessage(''); }}
                   className={`flex-1 py-2 font-semibold rounded-lg transition-all ${
@@ -230,20 +338,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   Log In
                 </button>
                 <button
-                  onClick={() => { setTab('signup'); setErrorMessage(''); setSuccessMessage(''); }}
+                  onClick={() => { 
+                    setTab('admin'); 
+                    setEmail('');
+                    setPassword('');
+                    setSecretKey('');
+                    setErrorMessage(''); 
+                    setSuccessMessage(''); 
+                  }}
                   className={`flex-1 py-2 font-semibold rounded-lg transition-all ${
-                    tab === 'signup' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+                    tab === 'admin' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  Sign Up
-                </button>
-                <button
-                  onClick={() => { setTab('forgot'); setErrorMessage(''); setSuccessMessage(''); }}
-                  className={`flex-1 py-2 font-semibold rounded-lg transition-all ${
-                    tab === 'forgot' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Reset
+                  Admin Access
                 </button>
               </div>
 
@@ -262,11 +369,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               )}
 
-              {/* Login Form */}
-              {tab === 'login' && (
+              {/* Admin Access Direct Login */}
+              {tab === 'admin' && (
                 <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-xs text-indigo-200 mb-2">
+                    <strong>Administrator Access Portal</strong> — Verify administrator email, password, and secret key code.
+                  </div>
+
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Admin Email</label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
                       <input
@@ -274,8 +385,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="rafiq@abcedu.bd"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                        placeholder="admin@example.com"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                   </div>
@@ -290,12 +401,99 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Secret Key Code</label>
+                    <div className="relative">
+                      <KeyRound className="w-4 h-4 text-indigo-400 absolute left-3 top-3" />
+                      <input
+                        type="password"
+                        required
+                        value={secretKey}
+                        onChange={(e) => setSecretKey(e.target.value)}
+                        placeholder="Enter Secret Key Code"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-colors shadow-md shadow-indigo-600/20 flex items-center justify-center space-x-2"
+                  >
+                    <KeyRound className="w-4 h-4" />
+                    <span>{loading ? 'Verifying Admin...' : 'Verify Admin Credentials & Access'}</span>
+                  </button>
+                </form>
+              )}
+
+              {/* Login Form */}
+              {tab === 'login' && (
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address *</label>
+                    <div className="flex items-center space-x-2">
+                      <div className="relative flex-1">
+                        <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                        <input
+                          type="email"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="user@example.com"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSendCode}
+                        disabled={codeLoading}
+                        className="px-3 py-2 bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/40 rounded-xl text-xs font-semibold whitespace-nowrap transition-all"
+                      >
+                        {codeLoading ? 'Sending...' : 'Get Code'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {verificationNotice && (
+                    <div className="p-2.5 bg-emerald-950/60 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-mono font-semibold animate-pulse">
+                      {verificationNotice}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Verification Code *</label>
+                    <div className="relative">
+                      <KeyRound className="w-4 h-4 text-blue-400 absolute left-3 top-3" />
+                      <input
+                        type="text"
+                        required
+                        value={verificationCode}
+                        onChange={(e) => setVerificationCode(e.target.value)}
+                        placeholder="Enter 6-digit code"
+                        className="w-full bg-slate-950 border border-blue-800/80 rounded-xl pl-9 pr-3 py-2 text-xs font-mono font-bold text-blue-300 focus:outline-none focus:border-blue-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Password *</label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                      <input
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500"
                       />
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      Demo logins: <code className="text-blue-400">rafiq@abcedu.bd</code> / <code className="text-blue-400">password123</code> or <code className="text-blue-400">admin@connectbd.com</code> / <code className="text-blue-400">admin123</code>
-                    </p>
                   </div>
 
                   <button
@@ -311,99 +509,156 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               {/* Signup Form */}
               {tab === 'signup' && (
                 <form onSubmit={handleSignup} className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Md. Sazzad Hossain"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
+                  <div className="p-3 bg-blue-950/40 border border-blue-500/30 rounded-xl text-[11px] text-blue-200 leading-relaxed">
+                    <strong>New Customer Registration</strong> — Passwords are encrypted with <code className="text-blue-300">bcrypt</code> before database storage. New accounts are immediately persistent and granted access.
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label>
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="sazzad@example.com"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name *</label>
+                    <div className="relative">
+                      <User className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Md. Sazzad Hossain"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Password</label>
-                    <input
-                      type="password"
-                      required
-                      minLength={6}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="At least 6 characters"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                    />
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address *</label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="customer@example.com"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Account Role</label>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Password *</label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                        <input
+                          type="password"
+                          required
+                          minLength={6}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Min 6 chars"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Confirm Password *</label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                        <input
+                          type="password"
+                          required
+                          minLength={6}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Repeat password"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Account Category</label>
                       <select
                         value={role}
                         onChange={(e) => setRole(e.target.value as UserRole)}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
                       >
                         <option value="customer">Customer (Edu/Community)</option>
-                        <option value="business">Business / Enterprise</option>
+                        <option value="business">Business / Corporate</option>
                       </select>
                     </div>
 
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">District</label>
-                      <input
-                        type="text"
+                      <select
                         value={district}
                         onChange={(e) => setDistrict(e.target.value)}
-                        placeholder="Dhaka, Bogura..."
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                      />
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="Dhaka">Dhaka</option>
+                        <option value="Bogura">Bogura</option>
+                        <option value="Sylhet">Sylhet</option>
+                        <option value="Chattogram">Chattogram</option>
+                        <option value="Rajshahi">Rajshahi</option>
+                        <option value="Khulna">Khulna</option>
+                        <option value="Rangpur">Rangpur</option>
+                        <option value="Barishal">Barishal</option>
+                        <option value="Mymensingh">Mymensingh</option>
+                        <option value="Cox's Bazar">Cox's Bazar</option>
+                      </select>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">Organization</label>
-                      <input
-                        type="text"
-                        value={organization}
-                        onChange={(e) => setOrganization(e.target.value)}
-                        placeholder="School/NGO/Company"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                      />
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Organization / School</label>
+                      <div className="relative">
+                        <Building className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          value={organization}
+                          onChange={(e) => setOrganization(e.target.value)}
+                          placeholder="School or Company"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
                     </div>
 
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">Phone Number</label>
-                      <input
-                        type="text"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+880 1711-223344"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                      />
+                      <div className="relative">
+                        <Phone className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          placeholder="+880 1711-223344"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
                     </div>
                   </div>
 
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-colors shadow-md mt-2"
+                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-colors shadow-md mt-2 flex items-center justify-center space-x-2"
                   >
-                    {loading ? 'Creating Account...' : 'Create Account & Sign In'}
+                    <User className="w-4 h-4" />
+                    <span>{loading ? 'Hashing Password & Registering...' : 'Register Customer Account'}</span>
                   </button>
+
+                  <div className="text-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => { setTab('login'); setErrorMessage(''); setSuccessMessage(''); }}
+                      className="text-[11px] text-slate-400 hover:text-blue-400 transition-colors"
+                    >
+                      Already have an account? <span className="text-blue-400 underline font-semibold">Log in here</span>
+                    </button>
+                  </div>
                 </form>
               )}
 

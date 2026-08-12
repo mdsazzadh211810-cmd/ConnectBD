@@ -72,7 +72,7 @@ export const ComplianceCenter: React.FC<ComplianceCenterProps> = ({
             </p>
           </div>
 
-          {currentUser.role === 'admin' && (
+          {currentUser?.role === 'admin' && (
             <button
               onClick={() => setShowUploadModal(true)}
               className="px-4 py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs rounded-xl shadow-md flex items-center space-x-2 shrink-0 self-start sm:self-center"

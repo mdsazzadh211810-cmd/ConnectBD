@@ -165,7 +165,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({
 
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => onAddToCart(product)}
+                    onClick={() => onAddToCart?.(product)}
                     className="py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs rounded-xl transition-colors flex items-center justify-center space-x-1.5 shadow-sm"
                   >
                     <ShoppingCart className="w-3.5 h-3.5" />
@@ -173,7 +173,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({
                   </button>
 
                   <button
-                    onClick={onOpenQuote}
+                    onClick={() => onOpenQuote?.()}
                     className="py-2.5 bg-slate-950 hover:bg-slate-800 text-slate-300 font-semibold text-xs rounded-xl border border-slate-800"
                   >
                     Request Quote
@@ -230,7 +230,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({
               <div className="flex items-center justify-end space-x-3 pt-2">
                 <button
                   onClick={() => {
-                    onAddToCart(activeSpecProduct);
+                    if (activeSpecProduct) onAddToCart?.(activeSpecProduct);
                     setActiveSpecProduct(null);
                   }}
                   className="px-5 py-2.5 bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl hover:bg-cyan-300"

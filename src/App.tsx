@@ -21,6 +21,7 @@ import { CartModal } from './components/CartModal';
 import { CheckoutModal } from './components/CheckoutModal';
 import { QuoteModal } from './components/QuoteModal';
 import { AuthModal } from './components/AuthModal';
+import { LandingPortal } from './components/LandingPortal';
 import { TrustSection } from './components/TrustSection';
 import { Footer } from './components/Footer';
 
@@ -51,6 +52,9 @@ import {
 } from './data/initialData';
 
 export default function App() {
+  // Gateway Portal Initial Landing Page
+  const [showGatewayPortal, setShowGatewayPortal] = useState<boolean>(true);
+
   // Navigation & User State
   const [activeTab, setActiveTab] = useState<string>('home');
   const [currentUser, setCurrentUser] = useState<UserProfile>(INITIAL_USERS[0]);
@@ -85,9 +89,22 @@ export default function App() {
       const data = await res.json();
       if (data.authenticated && data.user) {
         setCurrentUser(data.user);
+        if (data.user.role !== 'admin' && activeTab === 'admin-dashboard') {
+          setActiveTab('home');
+        }
       }
     } catch (err) {
       console.warn('Session fetch failed, using default state.');
+    }
+  };
+
+  const handlePortalLoginSuccess = (user: UserProfile) => {
+    setCurrentUser(user);
+    setShowGatewayPortal(false);
+    if (user.role === 'admin') {
+      setActiveTab('admin-dashboard');
+    } else {
+      setActiveTab('home');
     }
   };
 
@@ -386,7 +403,7 @@ export default function App() {
         return (
           <main>
             <Hero setActiveTab={setActiveTab} onOpenQuote={() => setQuoteModalOpen(true)} />
-            <ProblemSolution setActiveTab={setActiveTab} />
+            <ProblemSolution setActiveTab={setActiveTab} onOpenQuote={() => setQuoteModalOpen(true)} />
             <TrustSection certificates={certificates} setActiveTab={setActiveTab} />
           </main>
         );
@@ -396,7 +413,6 @@ export default function App() {
           <SolutionsPage 
             setActiveTab={setActiveTab} 
             onOpenQuote={() => setQuoteModalOpen(true)} 
-            onSelectPackage={(pkg) => handleAddToCart(pkg, 'package')} 
           />
         );
 
@@ -406,6 +422,7 @@ export default function App() {
             packages={packages} 
             onSelectPackage={(pkg) => handleAddToCart(pkg, 'package')} 
             onOpenQuote={() => setQuoteModalOpen(true)} 
+            setActiveTab={setActiveTab}
           />
         );
 
@@ -414,13 +431,13 @@ export default function App() {
           <ProductsPage 
             products={products} 
             onAddToCart={(product) => handleAddToCart(product, 'product')} 
+            onOpenQuote={() => setQuoteModalOpen(true)}
           />
         );
 
       case 'services':
         return (
           <ServicesPage 
-            setActiveTab={setActiveTab} 
             onOpenQuote={() => setQuoteModalOpen(true)} 
           />
         );
@@ -435,13 +452,13 @@ export default function App() {
         );
 
       case 'supply-chain':
-        return <SupplyChainPage setActiveTab={setActiveTab} />;
+        return <SupplyChainPage />;
 
       case 'compliance':
         return <ComplianceCenter certificates={certificates} currentUser={currentUser} setActiveTab={setActiveTab} />;
 
       case 'impact':
-        return <CommunityImpactPage setActiveTab={setActiveTab} onOpenQuote={() => setQuoteModalOpen(true)} />;
+        return <CommunityImpactPage />;
 
       case 'support':
         return (
@@ -452,13 +469,13 @@ export default function App() {
         );
 
       case 'about':
-        return <AboutUs setActiveTab={setActiveTab} onOpenQuote={() => setQuoteModalOpen(true)} />;
+        return <AboutUs />;
 
       case 'how-it-works':
         return <HowItWorks setActiveTab={setActiveTab} onOpenQuote={() => setQuoteModalOpen(true)} />;
 
       case 'business-model':
-        return <BusinessModelPage setActiveTab={setActiveTab} onOpenQuote={() => setQuoteModalOpen(true)} />;
+        return <BusinessModelPage />;
 
       case 'customer-dashboard':
         return (
@@ -483,6 +500,25 @@ export default function App() {
         );
 
       case 'admin-dashboard':
+        if (currentUser.role !== 'admin') {
+          return (
+            <div className="max-w-3xl mx-auto my-16 p-8 bg-slate-900 border border-rose-500/30 rounded-3xl text-center space-y-4 shadow-2xl">
+              <div className="w-16 h-16 bg-rose-500/20 text-rose-400 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">
+                🔒
+              </div>
+              <h2 className="text-2xl font-bold text-white">Access Denied - Admin Role Required</h2>
+              <p className="text-sm text-slate-400 max-w-lg mx-auto">
+                The Admin Control Tower is strictly restricted to authenticated users verified with the <strong className="text-cyan-400">admin</strong> role in the Firestore user document.
+              </p>
+              <button
+                onClick={() => setActiveTab('home')}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all shadow-md"
+              >
+                Return to Home Portal
+              </button>
+            </div>
+          );
+        }
         return (
           <AdminDashboard 
             currentUser={currentUser}
@@ -493,6 +529,7 @@ export default function App() {
             certificates={certificates} 
             auditLogs={auditLogs} 
             onUpdateOrderStatus={handleUpdateOrderStatus} 
+            onAddProductSuccess={(newProd) => setProducts(prev => [newProd, ...prev])}
           />
         );
 
@@ -500,12 +537,26 @@ export default function App() {
         return (
           <main>
             <Hero setActiveTab={setActiveTab} onOpenQuote={() => setQuoteModalOpen(true)} />
-            <ProblemSolution setActiveTab={setActiveTab} />
+            <ProblemSolution setActiveTab={setActiveTab} onOpenQuote={() => setQuoteModalOpen(true)} />
             <TrustSection certificates={certificates} setActiveTab={setActiveTab} />
           </main>
         );
     }
   };
+
+  if (showGatewayPortal) {
+    return (
+      <LandingPortal 
+        onLoginSuccess={handlePortalLoginSuccess} 
+        onExplorePublicGuest={() => {
+          setShowGatewayPortal(false);
+          setActiveTab('home');
+        }} 
+        language={language}
+        setLanguage={setLanguage}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col antialiased selection:bg-cyan-500 selection:text-slate-950">
@@ -520,6 +571,8 @@ export default function App() {
         onOpenQuote={() => setQuoteModalOpen(true)} 
         language={language} 
         setLanguage={setLanguage} 
+        onShowGatewayPortal={() => setShowGatewayPortal(true)}
+        onOpenAuthModal={() => setAuthModalOpen(true)}
       />
 
       {/* Auth Modal Trigger Banner */}

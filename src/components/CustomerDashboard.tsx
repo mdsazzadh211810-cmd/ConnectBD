@@ -47,18 +47,18 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           <div className="flex items-center space-x-4">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-600 to-blue-600 p-0.5 shadow-md">
               <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center text-xl font-bold text-white">
-                {currentUser.name.charAt(0)}
+                {currentUser?.name ? currentUser.name.charAt(0) : 'U'}
               </div>
             </div>
 
             <div>
               <div className="flex items-center space-x-2">
-                <h1 className="text-2xl font-extrabold text-white">{currentUser.name}</h1>
+                <h1 className="text-2xl font-extrabold text-white">{currentUser?.name || 'Valued User'}</h1>
                 <span className="bg-emerald-950 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-800">
                   Verified Account
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">{currentUser.organization || 'Community Customer'} • {currentUser.email}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{currentUser?.organization || 'Community Customer'} • {currentUser?.email || ''}</p>
             </div>
           </div>
 
@@ -72,7 +72,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             </button>
 
             <button
-              onClick={() => setActiveTab('planner')}
+              onClick={() => setActiveTab?.('planner')}
               className="px-4 py-2 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-colors"
             >
               New AI Plan

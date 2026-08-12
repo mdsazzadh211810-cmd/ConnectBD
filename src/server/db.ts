@@ -23,6 +23,14 @@ import {
   INITIAL_SUPPORT_TICKETS, 
   INITIAL_AUDIT_LOGS 
 } from '../data/initialData.js';
+import { 
+  syncUserToCloud, 
+  syncOrderToCloud, 
+  syncQuoteToCloud, 
+  syncTicketToCloud, 
+  syncAuditLogToCloud, 
+  syncAllInitialDataToCloud 
+} from './firestore.js';
 
 export interface UserDBRecord extends UserProfile {
   passwordHash: string;
@@ -116,6 +124,14 @@ class Database {
     } else {
       this.seedNewDatabase();
     }
+
+    // Trigger initial cloud sync for customer & operational records
+    syncAllInitialDataToCloud({
+      users: this.data.users,
+      orders: this.data.orders,
+      quotes: this.data.quotes,
+      tickets: this.data.tickets
+    });
   }
 
   private seedNewDatabase() {
@@ -137,6 +153,9 @@ class Database {
 
   public save() {
     try {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
       fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
     } catch (err) {
       console.error('Database write error:', err);
@@ -159,6 +178,7 @@ class Database {
   public addUser(user: UserDBRecord) {
     this.data.users.unshift(user);
     this.save();
+    syncUserToCloud(user);
   }
 
   public updateUser(id: string, updates: Partial<UserDBRecord>) {
@@ -166,6 +186,7 @@ class Database {
     if (idx !== -1) {
       this.data.users[idx] = { ...this.data.users[idx], ...updates };
       this.save();
+      syncUserToCloud(this.data.users[idx]);
       return this.data.users[idx];
     }
     return undefined;
@@ -177,6 +198,11 @@ class Database {
 
   public findProductById(id: string): Product | undefined {
     return this.data.products.find((p) => p.id === id);
+  }
+
+  public addProduct(product: Product) {
+    this.data.products.unshift(product);
+    this.save();
   }
 
   public updateProductStock(id: string, quantityToDeduct: number): boolean {
@@ -207,6 +233,7 @@ class Database {
   public addQuote(quote: QuoteRequest) {
     this.data.quotes.unshift(quote);
     this.save();
+    syncQuoteToCloud(quote);
   }
 
   public getOrders(): Order[] {
@@ -220,6 +247,7 @@ class Database {
   public addOrder(order: Order) {
     this.data.orders.unshift(order);
     this.save();
+    syncOrderToCloud(order);
   }
 
   public updateOrder(id: string, updates: Partial<Order>) {
@@ -227,6 +255,7 @@ class Database {
     if (idx !== -1) {
       this.data.orders[idx] = { ...this.data.orders[idx], ...updates };
       this.save();
+      syncOrderToCloud(this.data.orders[idx]);
       return this.data.orders[idx];
     }
     return undefined;
@@ -277,6 +306,7 @@ class Database {
   public addTicket(ticket: SupportTicket) {
     this.data.tickets.unshift(ticket);
     this.save();
+    syncTicketToCloud(ticket);
   }
 
   public addTicketMessage(ticketId: string, message: { sender: 'customer' | 'agent'; senderName: string; timestamp: string; text: string }) {
@@ -284,6 +314,7 @@ class Database {
     if (tkt) {
       tkt.messages.push(message);
       this.save();
+      syncTicketToCloud(tkt);
       return tkt;
     }
     return undefined;
@@ -305,6 +336,7 @@ class Database {
     };
     this.data.auditLogs.unshift(log);
     this.save();
+    syncAuditLogToCloud(log);
   }
 
   // Idempotency Keys

@@ -198,7 +198,7 @@ export const PackagesPage: React.FC<PackagesPageProps> = ({
             </p>
           </div>
           <button
-            onClick={() => setActiveTab('planner')}
+            onClick={() => setActiveTab?.('planner')}
             className="px-6 py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs rounded-xl transition-colors shrink-0 flex items-center space-x-2"
           >
             <Sparkles className="w-4 h-4" />

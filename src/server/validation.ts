@@ -1,18 +1,36 @@
 import { z } from 'zod';
 
 export const signupSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  name: z.string().min(1, 'Name is required').transform(s => s.trim()),
+  email: z.string().transform(s => s.trim().toLowerCase()).pipe(z.string().email('Invalid email address format')),
+  password: z.string().min(4, 'Password must be at least 4 characters'),
   role: z.enum(['customer', 'business', 'technician', 'operations', 'admin']).default('customer'),
-  organization: z.string().optional(),
-  phone: z.string().optional(),
-  district: z.string().optional()
+  organization: z.string().optional().nullable().transform(s => s?.trim() || ''),
+  phone: z.string().optional().nullable().transform(s => s?.trim() || ''),
+  district: z.string().optional().nullable().transform(s => s?.trim() || 'Dhaka')
 });
 
 export const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(1, 'Password is required')
+  email: z.string().transform(s => s.trim().toLowerCase()).pipe(z.string().email('Invalid email address format')),
+  password: z.string().min(1, 'Password is required'),
+  secretKey: z.string().optional().nullable(),
+  verificationCode: z.string().optional().nullable()
+});
+
+export const createProductSchema = z.object({
+  name: z.string().min(2, 'Product name is required'),
+  category: z.string().default('Routers'),
+  sku: z.string().optional(),
+  manufacturer: z.string().default('ConnectBD Direct'),
+  origin: z.string().default('Shenzhen / Dhaka'),
+  priceBDT: z.number().min(0, 'Price must be non-negative'),
+  stock: z.number().int().min(0, 'Stock must be non-negative').default(10),
+  deliveryDays: z.string().default('2-4 Business Days'),
+  warranty: z.string().default('1 Year Warranty'),
+  description: z.string().min(5, 'Product description is required'),
+  seoKeywords: z.string().optional(),
+  specs: z.record(z.string(), z.string()).optional(),
+  image: z.string().optional()
 });
 
 export const forgotPasswordSchema = z.object({

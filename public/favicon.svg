@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="128" fill="#0f172a"/>
+  <circle cx="256" cy="256" r="190" stroke="#1e293b" stroke-width="12"/>
+  <!-- Connectivity Waves -->
+  <path d="M120 200 C 180 140, 332 140, 392 200" stroke="#38bdf8" stroke-width="24" stroke-linecap="round"/>
+  <path d="M160 250 C 200 210, 312 210, 352 250" stroke="#2563eb" stroke-width="24" stroke-linecap="round"/>
+  <path d="M200 300 C 224 276, 288 276, 312 300" stroke="#3b82f6" stroke-width="24" stroke-linecap="round"/>
+  <!-- Center Signal Node -->
+  <circle cx="256" cy="350" r="28" fill="#38bdf8"/>
+  <circle cx="256" cy="350" r="14" fill="#ffffff"/>
+</svg>

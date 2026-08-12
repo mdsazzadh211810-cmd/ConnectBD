@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { ProblemSolution } from './components/ProblemSolution';
@@ -20,6 +20,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { CartModal } from './components/CartModal';
 import { CheckoutModal } from './components/CheckoutModal';
 import { QuoteModal } from './components/QuoteModal';
+import { AuthModal } from './components/AuthModal';
 import { TrustSection } from './components/TrustSection';
 import { Footer } from './components/Footer';
 
@@ -57,6 +58,8 @@ export default function App() {
 
   // E-Commerce & Core Business States
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [packages, setPackages] = useState<ConnectivityPackage[]>(INITIAL_PACKAGES);
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>(INITIAL_QUOTES);
   const [technicianJobs, setTechnicianJobs] = useState<TechnicianJob[]>(INITIAL_TECHNICIAN_JOBS);
@@ -68,17 +71,118 @@ export default function App() {
   const [cartModalOpen, setCartModalOpen] = useState(false);
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
-  // Switch Persona Role Handler
-  const handleSwitchRole = (role: UserRole) => {
-    const found = INITIAL_USERS.find(u => u.role === role) || {
-      id: `usr_${role}`,
-      name: `${role.toUpperCase()} User`,
-      email: `${role}@connectbd.com`,
-      role: role,
-      verified: true
-    };
-    setCurrentUser(found);
+  // Fetch Session & Database State on Mount
+  useEffect(() => {
+    fetchSession();
+    fetchBackendData();
+  }, []);
+
+  const fetchSession = async () => {
+    try {
+      const res = await fetch('/api/auth/me');
+      const data = await res.json();
+      if (data.authenticated && data.user) {
+        setCurrentUser(data.user);
+      }
+    } catch (err) {
+      console.warn('Session fetch failed, using default state.');
+    }
+  };
+
+  const fetchBackendData = async () => {
+    try {
+      const [prodRes, pkgRes, certRes] = await Promise.all([
+        fetch('/api/products'),
+        fetch('/api/packages'),
+        fetch('/api/certificates')
+      ]);
+
+      if (prodRes.ok) {
+        const prodData = await prodRes.json();
+        if (prodData.products) setProducts(prodData.products);
+      }
+      if (pkgRes.ok) {
+        const pkgData = await pkgRes.json();
+        if (pkgData.packages) setPackages(pkgData.packages);
+      }
+      if (certRes.ok) {
+        const certData = await certRes.json();
+        if (certData.certificates) setCertificates(certData.certificates);
+      }
+    } catch (err) {
+      console.warn('Backend data sync note:', err);
+    }
+  };
+
+  const syncAuthenticatedData = async () => {
+    try {
+      const [ordRes, qteRes, tktRes, jobRes] = await Promise.all([
+        fetch('/api/orders'),
+        fetch('/api/quotes'),
+        fetch('/api/tickets'),
+        fetch('/api/technician/jobs')
+      ]);
+
+      if (ordRes.ok) {
+        const data = await ordRes.json();
+        if (data.orders) setOrders(data.orders);
+      }
+      if (qteRes.ok) {
+        const data = await qteRes.json();
+        if (data.quotes) setQuoteRequests(data.quotes);
+      }
+      if (tktRes.ok) {
+        const data = await tktRes.json();
+        if (data.tickets) setSupportTickets(data.tickets);
+      }
+      if (jobRes.ok) {
+        const data = await jobRes.json();
+        if (data.jobs) setTechnicianJobs(data.jobs);
+      }
+    } catch (err) {
+      console.warn('Authenticated sync note:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      syncAuthenticatedData();
+    }
+  }, [currentUser]);
+
+  // Switch Persona Role Handler via Backend Route
+  const handleSwitchRole = async (role: UserRole) => {
+    try {
+      const res = await fetch('/api/auth/switch-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role })
+      });
+      const data = await res.json();
+      if (data.success && data.user) {
+        setCurrentUser(data.user);
+      } else {
+        alert(data.message || 'Role switching disabled.');
+      }
+    } catch (err) {
+      const found = INITIAL_USERS.find(u => u.role === role) || {
+        id: `usr_${role}`,
+        name: `${role.toUpperCase()} User`,
+        email: `${role}@connectbd.com`,
+        role: role,
+        verified: true
+      };
+      setCurrentUser(found);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {}
+    setCurrentUser(INITIAL_USERS[0]);
   };
 
   // Cart Functions
@@ -118,65 +222,91 @@ export default function App() {
     setCheckoutModalOpen(true);
   };
 
-  // Complete Order
-  const handleCompleteOrder = (newOrder: Order) => {
-    setOrders(prev => [newOrder, ...prev]);
-    setCartItems([]);
-    setCheckoutModalOpen(false);
-    
-    // Add Audit Log
-    const newLog: AuditLog = {
-      id: `log_${Date.now()}`,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      userEmail: currentUser.email,
-      role: currentUser.role,
-      action: 'New Order Placed',
-      details: `Placed order ${newOrder.orderNumber} valued at ${newOrder.totalBDT.toLocaleString()} BDT`,
-      ipAddress: '103.114.172.5'
-    };
-    setAuditLogs(prev => [newLog, ...prev]);
+  // Complete Order via Server Endpoint
+  const handleCompleteOrder = async (deliveryAddressData: any) => {
+    try {
+      const idempotencyKey = `idemp_${Date.now()}_${Math.random()}`;
+      const payload = {
+        items: cartItems.map(ci => ({
+          productId: ci.type === 'product' ? ci.id : undefined,
+          packageId: ci.type === 'package' ? ci.id : undefined,
+          quantity: ci.quantity,
+          includeInstallation: ci.includeInstallation
+        })),
+        deliveryAddress: deliveryAddressData.deliveryAddress || {
+          district: 'Dhaka',
+          thana: 'Gulshan',
+          address: 'House 12, Road 5, Gulshan 1',
+          contactPhone: currentUser.phone || '+880 1700-000000'
+        },
+        paymentMethod: deliveryAddressData.paymentMethod || 'bKash/Nagad'
+      };
 
-    // Navigate to Customer Dashboard
-    setActiveTab('customer-dashboard');
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Order creation failed');
+      }
+
+      setOrders(prev => [data.order, ...prev]);
+      if (data.job) setTechnicianJobs(prev => [data.job, ...prev]);
+      setCartItems([]);
+      setCheckoutModalOpen(false);
+      
+      // Sync products for stock update
+      fetchBackendData();
+
+      setActiveTab('customer-dashboard');
+    } catch (err: any) {
+      alert(`Order Processing Error: ${err.message}`);
+    }
   };
 
   // Submit Custom Quote Request
-  const handleSubmitQuote = (quoteData: Partial<QuoteRequest>) => {
-    const newQuote: QuoteRequest = {
-      id: `q_${Date.now()}`,
-      quoteNumber: `CBD-QT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-      userId: currentUser.id,
-      customerName: currentUser.name,
-      customerType: quoteData.customerType || 'Community',
-      organizationName: quoteData.organizationName || currentUser.organization || 'Local Community Center',
-      location: quoteData.location || 'Dhaka, Bangladesh',
-      numberOfUsers: quoteData.numberOfUsers || 50,
-      coverageAreaSqFt: quoteData.coverageAreaSqFt || 2500,
-      desiredBandwidthMbps: quoteData.desiredBandwidthMbps || 50,
-      numberOfBuildings: quoteData.numberOfBuildings || 1,
-      preferredBackhaul: quoteData.preferredBackhaul || 'Fiber',
-      budgetRangeBDT: quoteData.budgetRangeBDT || '25,000 - 50,000 BDT',
-      expectedDate: quoteData.expectedDate || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
-      additionalNotes: quoteData.additionalNotes || '',
-      status: 'Submitted',
-      createdAt: new Date().toISOString().split('T')[0]
-    };
+  const handleSubmitQuote = async (quoteData: Partial<QuoteRequest>) => {
+    try {
+      const res = await fetch('/api/quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(quoteData)
+      });
 
-    setQuoteRequests(prev => [newQuote, ...prev]);
+      const data = await res.json();
+      if (data.success && data.quote) {
+        setQuoteRequests(prev => [data.quote, ...prev]);
+      }
+    } catch (err) {
+      // Fallback local update
+      const newQuote: QuoteRequest = {
+        id: `q_${Date.now()}`,
+        quoteNumber: `CBD-QT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        userId: currentUser.id,
+        customerName: currentUser.name,
+        customerType: quoteData.customerType || 'Community',
+        organizationName: quoteData.organizationName || currentUser.organization || 'Local Community Center',
+        location: quoteData.location || 'Dhaka, Bangladesh',
+        numberOfUsers: quoteData.numberOfUsers || 50,
+        coverageAreaSqFt: quoteData.coverageAreaSqFt || 2500,
+        desiredBandwidthMbps: quoteData.desiredBandwidthMbps || 50,
+        numberOfBuildings: quoteData.numberOfBuildings || 1,
+        preferredBackhaul: quoteData.preferredBackhaul || 'Fiber',
+        budgetRangeBDT: quoteData.budgetRangeBDT || '25,000 - 50,000 BDT',
+        expectedDate: quoteData.expectedDate || new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+        additionalNotes: quoteData.additionalNotes || '',
+        status: 'Submitted',
+        createdAt: new Date().toISOString().split('T')[0]
+      };
+      setQuoteRequests(prev => [newQuote, ...prev]);
+    }
     setQuoteModalOpen(false);
-
-    // Audit log
-    const newLog: AuditLog = {
-      id: `log_${Date.now()}`,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      userEmail: currentUser.email,
-      role: currentUser.role,
-      action: 'Quote Request Submitted',
-      details: `Quote #${newQuote.quoteNumber} for ${newQuote.organizationName}`,
-      ipAddress: '103.114.172.5'
-    };
-    setAuditLogs(prev => [newLog, ...prev]);
-
     setActiveTab('customer-dashboard');
   };
 
@@ -185,21 +315,46 @@ export default function App() {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
   };
 
-  const handleUpdateJobStatus = (jobId: string, status: TechnicianJob['status'], report?: string) => {
-    setTechnicianJobs(prev => prev.map(j => {
-      if (j.id === jobId) {
-        return { 
-          ...j, 
-          status, 
-          technicianReport: report || j.technicianReport,
-          customerSignatureDate: status === 'Completed' ? new Date().toISOString().split('T')[0] : j.customerSignatureDate
-        };
+  const handleUpdateJobStatus = async (jobId: string, status: TechnicianJob['status'], report?: string) => {
+    try {
+      const res = await fetch('/api/technician/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId, status, technicianReport: report })
+      });
+      const data = await res.json();
+      if (data.success && data.job) {
+        setTechnicianJobs(prev => prev.map(j => (j.id === jobId || j.jobId === jobId) ? data.job : j));
       }
-      return j;
-    }));
+    } catch (err) {
+      setTechnicianJobs(prev => prev.map(j => {
+        if (j.id === jobId) {
+          return { 
+            ...j, 
+            status, 
+            technicianReport: report || j.technicianReport,
+            customerSignatureDate: status === 'Completed' ? new Date().toISOString().split('T')[0] : j.customerSignatureDate
+          };
+        }
+        return j;
+      }));
+    }
   };
 
-  const handleCreateSupportTicket = (subject: string, category: SupportTicket['category'], text: string) => {
+  const handleCreateSupportTicket = async (subject: string, category: SupportTicket['category'], text: string) => {
+    try {
+      const res = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, category, message: text })
+      });
+      const data = await res.json();
+      if (data.success && data.ticket) {
+        setSupportTickets(prev => [data.ticket, ...prev]);
+        return;
+      }
+    } catch (err) {}
+
     const newTicket: SupportTicket = {
       id: `tkt_${Date.now()}`,
       ticketNumber: `TKT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -248,7 +403,7 @@ export default function App() {
       case 'packages':
         return (
           <PackagesPage 
-            packages={INITIAL_PACKAGES} 
+            packages={packages} 
             onSelectPackage={(pkg) => handleAddToCart(pkg, 'package')} 
             onOpenQuote={() => setQuoteModalOpen(true)} 
           />
@@ -257,7 +412,7 @@ export default function App() {
       case 'products':
         return (
           <ProductsPage 
-            products={INITIAL_PRODUCTS} 
+            products={products} 
             onAddToCart={(product) => handleAddToCart(product, 'product')} 
           />
         );
@@ -334,7 +489,7 @@ export default function App() {
             orders={orders} 
             quotes={quoteRequests} 
             jobs={technicianJobs} 
-            products={INITIAL_PRODUCTS}
+            products={products}
             certificates={certificates} 
             auditLogs={auditLogs} 
             onUpdateOrderStatus={handleUpdateOrderStatus} 
@@ -367,6 +522,21 @@ export default function App() {
         setLanguage={setLanguage} 
       />
 
+      {/* Auth Modal Trigger Banner */}
+      <div className="bg-slate-900 border-b border-slate-800 text-slate-300 text-xs py-1 px-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
+          <span className="text-slate-400">
+            Authenticated Session: <strong className="text-white">{currentUser.name}</strong> ({currentUser.email})
+          </span>
+          <button
+            onClick={() => setAuthModalOpen(true)}
+            className="text-blue-400 hover:text-blue-300 font-bold underline ml-2"
+          >
+            Manage Auth / Login / Signup
+          </button>
+        </div>
+      </div>
+
       {/* Main Page Render */}
       <div className="flex-1">
         {renderMainContent()}
@@ -383,7 +553,7 @@ export default function App() {
         <CartModal 
           isOpen={cartModalOpen} 
           onClose={() => setCartModalOpen(false)} 
-          items={cartItems} 
+          cartItems={cartItems} 
           onUpdateQuantity={handleUpdateCartQuantity} 
           onRemoveItem={handleRemoveCartItem} 
           onToggleInstallation={handleToggleInstallation} 
@@ -395,9 +565,9 @@ export default function App() {
         <CheckoutModal 
           isOpen={checkoutModalOpen} 
           onClose={() => setCheckoutModalOpen(false)} 
-          items={cartItems} 
+          cartItems={cartItems} 
           currentUser={currentUser} 
-          onCompleteOrder={handleCompleteOrder} 
+          onOrderCreated={handleCompleteOrder} 
         />
       )}
 
@@ -406,9 +576,23 @@ export default function App() {
           isOpen={quoteModalOpen} 
           onClose={() => setQuoteModalOpen(false)} 
           currentUser={currentUser} 
-          onSubmitQuote={handleSubmitQuote} 
+          onQuoteSubmitted={handleSubmitQuote} 
+        />
+      )}
+
+      {authModalOpen && (
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          currentUser={currentUser}
+          onAuthSuccess={(user) => {
+            setCurrentUser(user);
+            setAuthModalOpen(false);
+          }}
+          onLogout={handleLogout}
         />
       )}
     </div>
   );
 }
+

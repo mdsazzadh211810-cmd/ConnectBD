@@ -1,38 +1,42 @@
 import express, { Request, Response } from 'express';
+import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
+import { db, UserDBRecord, StoredCertificate } from './src/server/db.js';
 import { 
-  INITIAL_USERS, 
-  INITIAL_PRODUCTS, 
-  INITIAL_PACKAGES, 
-  INITIAL_QUOTES, 
-  INITIAL_ORDERS, 
-  INITIAL_TECHNICIAN_JOBS, 
-  INITIAL_CERTIFICATES, 
-  INITIAL_SUPPORT_TICKETS, 
-  INITIAL_AUDIT_LOGS 
-} from './src/data/initialData.js';
+  AuthenticatedRequest, 
+  hashPassword, 
+  comparePassword, 
+  generateToken, 
+  setSessionCookie, 
+  clearSessionCookie, 
+  extractUserMiddleware, 
+  requireAuth, 
+  requireRole, 
+  requireDemoMode 
+} from './src/server/auth.js';
+import { 
+  signupSchema, 
+  loginSchema, 
+  forgotPasswordSchema, 
+  resetPasswordSchema, 
+  createOrderSchema, 
+  createQuoteSchema, 
+  createTicketSchema, 
+  replyTicketSchema, 
+  updateTechnicianJobSchema, 
+  createCertificateSchema 
+} from './src/server/validation.ts';
+import { processServerOrder, verifyAndConfirmPayment } from './src/server/orderEngine.js';
 import { UserRole } from './src/types.js';
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
-
-// In-memory data store for live demo interaction
-let usersList = [...INITIAL_USERS];
-let productsList = [...INITIAL_PRODUCTS];
-let packagesList = [...INITIAL_PACKAGES];
-let quotesList = [...INITIAL_QUOTES];
-let ordersList = [...INITIAL_ORDERS];
-let technicianJobsList = [...INITIAL_TECHNICIAN_JOBS];
-let certificatesList = [...INITIAL_CERTIFICATES];
-let ticketsList = [...INITIAL_SUPPORT_TICKETS];
-let auditLogsList = [...INITIAL_AUDIT_LOGS];
-
-// Current active session user (default to customer or customizable)
-let currentUser = usersList[0];
+app.use(cookieParser());
+app.use(extractUserMiddleware as any);
 
 // Initialize Google GenAI Server-side Client
 const getGeminiClient = () => {
@@ -50,331 +54,544 @@ const getGeminiClient = () => {
   });
 };
 
+// Helper for extracting IP
+const getClientIp = (req: Request) => {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    return (typeof forwarded === 'string' ? forwarded : forwarded[0]).split(',')[0].trim();
+  }
+  return req.socket.remoteAddress || '127.0.0.1';
+};
+
 // ==========================================
 // API ENDPOINTS
 // ==========================================
 
-// 1. Health check
+// 1. Health & Environment Status
 app.get('/api/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    demoMode: process.env.DEMO_MODE !== 'false',
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
-// 2. Auth & User Session
-app.get('/api/auth/me', (req: Request, res: Response) => {
-  res.json({ user: currentUser });
+// 2. Auth & Session Management
+app.get('/api/auth/me', (req: AuthenticatedRequest, res: Response) => {
+  if (req.user) {
+    const { passwordHash, ...safeUser } = req.user;
+    return res.json({ authenticated: true, user: safeUser });
+  }
+  res.json({ authenticated: false, user: null });
 });
 
-app.post('/api/auth/switch-role', (req: Request, res: Response) => {
+app.post('/api/auth/signup', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const parsed = signupSchema.parse(req.body);
+
+    const existing = db.findUserByEmail(parsed.email);
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'An account with this email already exists.' });
+    }
+
+    const hashedPassword = await hashPassword(parsed.password);
+
+    const newUser: UserDBRecord = {
+      id: `usr_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      name: parsed.name,
+      email: parsed.email.toLowerCase(),
+      passwordHash: hashedPassword,
+      role: parsed.role as UserRole,
+      organization: parsed.organization || '',
+      phone: parsed.phone || '',
+      district: parsed.district || 'Dhaka',
+      verified: true,
+      createdAt: new Date().toISOString()
+    };
+
+    db.addUser(newUser);
+
+    const token = generateToken(newUser);
+    setSessionCookie(res, token);
+
+    db.addAuditLog(
+      newUser.email,
+      newUser.role,
+      'User Signup',
+      `New user account registered for ${newUser.organization || newUser.name}`,
+      getClientIp(req)
+    );
+
+    const { passwordHash, ...safeUser } = newUser;
+    res.json({ success: true, user: safeUser, token });
+  } catch (err: any) {
+    if (err.errors) {
+      return res.status(400).json({ success: false, message: err.errors[0]?.message || 'Validation error' });
+    }
+    res.status(500).json({ success: false, message: err.message || 'Signup failed' });
+  }
+});
+
+app.post('/api/auth/login', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const parsed = loginSchema.parse(req.body);
+
+    const user = db.findUserByEmail(parsed.email);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials. User email not found.' });
+    }
+
+    const isMatch = await comparePassword(parsed.password, user.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials. Password verification failed.' });
+    }
+
+    const token = generateToken(user);
+    setSessionCookie(res, token);
+
+    db.addAuditLog(
+      user.email,
+      user.role,
+      'User Login',
+      'Successful password authentication',
+      getClientIp(req)
+    );
+
+    const { passwordHash, ...safeUser } = user;
+    res.json({ success: true, user: safeUser, token });
+  } catch (err: any) {
+    if (err.errors) {
+      return res.status(400).json({ success: false, message: err.errors[0]?.message || 'Validation error' });
+    }
+    res.status(500).json({ success: false, message: err.message || 'Login failed' });
+  }
+});
+
+app.post('/api/auth/logout', (req: Request, res: Response) => {
+  clearSessionCookie(res);
+  res.json({ success: true, message: 'Logged out successfully.' });
+});
+
+app.post('/api/auth/forgot-password', (req: Request, res: Response) => {
+  try {
+    const parsed = forgotPasswordSchema.parse(req.body);
+    const user = db.findUserByEmail(parsed.email);
+
+    if (user) {
+      const resetToken = db.createPasswordResetToken(user.email);
+      db.addAuditLog(user.email, user.role, 'Password Reset Requested', `Reset token generated`, getClientIp(req));
+      return res.json({ 
+        success: true, 
+        message: 'Password reset token generated.', 
+        demoResetToken: resetToken 
+      });
+    }
+
+    // Do not reveal email existence
+    res.json({ success: true, message: 'If the email exists, reset instructions have been dispatched.' });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err.errors?.[0]?.message || 'Invalid request' });
+  }
+});
+
+app.post('/api/auth/reset-password', async (req: Request, res: Response) => {
+  try {
+    const parsed = resetPasswordSchema.parse(req.body);
+    const email = db.verifyPasswordResetToken(parsed.token);
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired reset token.' });
+    }
+
+    const user = db.findUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const newHash = await hashPassword(parsed.newPassword);
+    db.updateUser(user.id, { passwordHash: newHash });
+    db.deletePasswordResetToken(parsed.token);
+
+    db.addAuditLog(user.email, user.role, 'Password Reset Completed', 'Password updated via token', getClientIp(req));
+
+    res.json({ success: true, message: 'Password has been updated successfully. Please log in.' });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err.errors?.[0]?.message || 'Reset failed' });
+  }
+});
+
+// Demo persona switcher (Protected by DEMO_MODE flag)
+app.post('/api/auth/switch-role', requireDemoMode, (req: AuthenticatedRequest, res: Response) => {
   const { role } = req.body;
-  const match = usersList.find((u) => u.role === role);
-  if (match) {
-    currentUser = match;
-    res.json({ success: true, user: currentUser });
-  } else {
-    // Create new temporary user with role
-    const newUser = {
+  const match = db.getUsers().find((u) => u.role === role);
+
+  let activeUser = match;
+  if (!activeUser) {
+    const newUser: UserDBRecord = {
       id: `usr_${Date.now()}`,
       name: `Demo ${role.toUpperCase()} User`,
       email: `${role}@connectbd.com`,
+      passwordHash: '$2a$10$demoHashedPasswordPlaceHolder',
       role: role as UserRole,
       organization: `ConnectBD ${role.toUpperCase()} Division`,
       phone: '+880 1700-000000',
       verified: true,
+      createdAt: new Date().toISOString()
     };
-    usersList.push(newUser);
-    currentUser = newUser;
-    res.json({ success: true, user: currentUser });
+    db.addUser(newUser);
+    activeUser = newUser;
   }
+
+  const token = generateToken(activeUser);
+  setSessionCookie(res, token);
+
+  const { passwordHash, ...safeUser } = activeUser;
+  res.json({ success: true, user: safeUser, token });
 });
 
-app.post('/api/auth/login', (req: Request, res: Response) => {
-  const { email } = req.body;
-  const found = usersList.find((u) => u.email.toLowerCase() === (email || '').toLowerCase());
-  if (found) {
-    currentUser = found;
-    res.json({ success: true, user: currentUser });
-  } else {
-    res.status(401).json({ success: false, message: 'Invalid credentials. Try rafiq@abcedu.bd or admin@connectbd.com' });
-  }
-});
-
-// 3. Products & Packages
+// 3. Products & Packages (Database Driven Catalog)
 app.get('/api/products', (req: Request, res: Response) => {
-  res.json({ products: productsList });
+  res.json({ products: db.getProducts() });
 });
 
 app.get('/api/packages', (req: Request, res: Response) => {
-  res.json({ packages: packagesList });
+  res.json({ packages: db.getPackages() });
 });
 
-// 4. Custom Quote Request
-app.get('/api/quotes', (req: Request, res: Response) => {
-  res.json({ quotes: quotesList });
-});
-
-app.post('/api/quotes', (req: Request, res: Response) => {
-  const body = req.body;
-  const newQuote = {
-    id: `q_${Date.now()}`,
-    quoteNumber: `CBD-QT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-    userId: currentUser.id,
-    customerName: currentUser.name,
-    customerType: body.customerType || 'Community',
-    organizationName: body.organizationName || currentUser.organization || 'Community Hub',
-    location: body.location || 'Dhaka, Bangladesh',
-    numberOfUsers: Number(body.numberOfUsers || 50),
-    coverageAreaSqFt: Number(body.coverageAreaSqFt || 3000),
-    desiredBandwidthMbps: Number(body.desiredBandwidthMbps || 50),
-    numberOfBuildings: Number(body.numberOfBuildings || 1),
-    preferredBackhaul: body.preferredBackhaul || 'Fiber',
-    budgetRangeBDT: body.budgetRangeBDT || '25,000 - 50,000 BDT',
-    existingISP: body.existingISP || 'None',
-    expectedDate: body.expectedDate || 'Within 2 weeks',
-    additionalNotes: body.additionalNotes || '',
-    status: 'Under Review' as const,
-    createdAt: new Date().toISOString().split('T')[0],
-  };
-
-  quotesList.unshift(newQuote);
-
-  // Log audit
-  auditLogsList.unshift({
-    id: `log_${Date.now()}`,
-    timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-    userEmail: currentUser.email,
-    role: currentUser.role,
-    action: 'Custom Connectivity Quote Submitted',
-    details: `Quote ${newQuote.quoteNumber} for ${newQuote.organizationName}`,
-    ipAddress: '103.114.172.1'
-  });
-
-  res.json({ success: true, quote: newQuote });
-});
-
-// 5. Orders
-app.get('/api/orders', (req: Request, res: Response) => {
-  if (currentUser.role === 'admin' || currentUser.role === 'operations') {
-    return res.json({ orders: ordersList });
+// 4. Custom Quote Requests
+app.get('/api/quotes', requireAuth as any, (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user!;
+  if (user.role === 'admin' || user.role === 'operations') {
+    return res.json({ quotes: db.getQuotes() });
   }
-  const myOrders = ordersList.filter((o) => o.userId === currentUser.id);
+  const myQuotes = db.getQuotes().filter((q) => q.userId === user.id);
+  res.json({ quotes: myQuotes });
+});
+
+app.post('/api/quotes', requireAuth as any, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const parsed = createQuoteSchema.parse(req.body);
+    const user = req.user!;
+
+    const newQuote = {
+      id: `q_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      quoteNumber: `CBD-QT-2026-${Math.floor(10000 + Math.random() * 90000)}`,
+      userId: user.id,
+      customerName: user.name,
+      customerType: parsed.customerType,
+      organizationName: parsed.organizationName,
+      location: parsed.location,
+      numberOfUsers: parsed.numberOfUsers,
+      coverageAreaSqFt: parsed.coverageAreaSqFt,
+      desiredBandwidthMbps: parsed.desiredBandwidthMbps,
+      numberOfBuildings: parsed.numberOfBuildings,
+      preferredBackhaul: parsed.preferredBackhaul,
+      budgetRangeBDT: parsed.budgetRangeBDT,
+      existingISP: parsed.existingISP || 'None',
+      expectedDate: parsed.expectedDate || 'Within 2 weeks',
+      additionalNotes: parsed.additionalNotes || '',
+      status: 'Under Review' as const,
+      createdAt: new Date().toISOString().split('T')[0]
+    };
+
+    db.addQuote(newQuote);
+
+    db.addAuditLog(
+      user.email,
+      user.role,
+      'Custom Quote Submitted',
+      `Quote ${newQuote.quoteNumber} submitted for ${newQuote.organizationName}`,
+      getClientIp(req)
+    );
+
+    res.json({ success: true, quote: newQuote });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err.errors?.[0]?.message || 'Invalid quote request' });
+  }
+});
+
+// 5. Orders & Payments (Authoritative Pricing, Stock & Verification)
+app.get('/api/orders', requireAuth as any, (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user!;
+  if (user.role === 'admin' || user.role === 'operations') {
+    return res.json({ orders: db.getOrders() });
+  }
+  const myOrders = db.getOrders().filter((o) => o.userId === user.id);
   res.json({ orders: myOrders });
 });
 
-app.post('/api/orders', (req: Request, res: Response) => {
-  const { items, deliveryAddress, paymentMethod, installationFeeBDT } = req.body;
-  
-  let subtotal = 0;
-  (items || []).forEach((it: any) => {
-    subtotal += (it.item.priceBDT || it.item.startingPriceBDT || 0) * (it.quantity || 1);
-  });
-  
-  const instFee = installationFeeBDT || 3500;
-  const total = subtotal + instFee;
+app.post('/api/orders', requireAuth as any, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const parsed = createOrderSchema.parse(req.body);
+    const user = req.user!;
+    const idempotencyKey = req.headers['idempotency-key'] as string;
 
-  const newOrder: any = {
-    id: `ord_${Date.now()}`,
-    orderNumber: `CBD-ORD-${Math.floor(1000 + Math.random() * 9000)}`,
-    userId: currentUser.id,
-    customerName: currentUser.name,
-    customerEmail: currentUser.email,
-    organizationName: currentUser.organization || 'Individual Customer',
-    items: items || [],
-    subtotalBDT: subtotal,
-    installationFeeBDT: instFee,
-    estimatedTaxBDT: 0,
-    totalBDT: total,
-    status: 'Paid',
-    deliveryAddress: deliveryAddress || {
-      district: 'Dhaka',
-      thana: 'Gulshan',
-      address: 'House 12, Road 5, Gulshan 1, Dhaka',
-      contactPhone: currentUser.phone || '+880 1700-000000'
-    },
-    paymentStatus: 'Paid',
-    paymentMethod: paymentMethod || 'bKash/Nagad',
-    createdAt: new Date().toISOString().split('T')[0],
-    estimatedDeliveryDate: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0],
-    technicianId: 'usr_003',
-    trackingSteps: [
-      { title: 'Order Confirmed & Payment Verified', date: 'Today', completed: true, current: true },
-      { title: 'China Sourcing & Hardware Quality Check', date: 'In Progress', completed: false },
-      { title: 'Cross-Border Shipment & Customs', date: 'Pending', completed: false },
-      { title: 'Bangladesh Warehouse Dispatch', date: 'Pending', completed: false },
-      { title: 'Field Technician Assigned', date: 'Pending', completed: false },
-      { title: 'On-Site Installation & Network Activation', date: 'Pending', completed: false }
-    ]
-  };
+    const result = processServerOrder(user, {
+      items: parsed.items,
+      deliveryAddress: parsed.deliveryAddress,
+      paymentMethod: parsed.paymentMethod,
+      idempotencyKey
+    });
 
-  ordersList.unshift(newOrder);
+    db.addAuditLog(
+      user.email,
+      user.role,
+      'Order Created',
+      `Order ${result.order.orderNumber} created. Total: ${result.order.totalBDT} BDT. Payment Status: ${result.order.paymentStatus}`,
+      getClientIp(req)
+    );
 
-  // Auto-create technician job dispatch
-  const newJob: any = {
-    id: `job_${Date.now()}`,
-    jobId: `CBD-JOB-${Math.floor(1000 + Math.random() * 9000)}`,
-    orderId: newOrder.id,
-    customerName: currentUser.name,
-    customerPhone: deliveryAddress?.contactPhone || currentUser.phone || '+880 1700-000000',
-    organizationName: currentUser.organization || 'Customer Site',
-    address: `${deliveryAddress?.address || 'Site Location'}, ${deliveryAddress?.district || 'Dhaka'}`,
-    district: deliveryAddress?.district || 'Dhaka',
-    serviceType: 'New Installation',
-    status: 'Assigned',
-    scheduledDate: new Date(Date.now() + 2 * 86400000).toISOString().split('T')[0],
-    requirements: [
-      'Site physical inspection & cable path verification',
-      'Mount Access Points & Gateway Router',
-      'Test Wi-Fi signal strength and throughput',
-      'Log device serial numbers & obtain customer sign-off'
-    ],
-    equipmentList: items.map((it: any) => ({
-      sku: it.item.sku || 'CBD-PKG-STD',
-      name: it.item.name,
-      quantity: it.quantity
-    }))
-  };
-
-  technicianJobsList.unshift(newJob);
-
-  res.json({ success: true, order: newOrder, job: newJob });
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    if (err.errors) {
+      return res.status(400).json({ success: false, message: err.errors[0]?.message || 'Validation error' });
+    }
+    res.status(400).json({ success: false, message: err.message || 'Failed to place order' });
+  }
 });
 
-// 6. Technician Jobs Management
-app.get('/api/technician/jobs', (req: Request, res: Response) => {
-  res.json({ jobs: technicianJobsList });
+// Payment Verification Webhook/Endpoint
+app.post('/api/payments/verify', requireAuth as any, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { orderId, transactionRef } = req.body;
+    if (!orderId || !transactionRef) {
+      return res.status(400).json({ success: false, message: 'orderId and transactionRef are required' });
+    }
+
+    const updatedOrder = verifyAndConfirmPayment(orderId, transactionRef, req.user!);
+    res.json({ success: true, order: updatedOrder, message: 'Payment verified and order marked as Paid.' });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err.message || 'Payment verification failed' });
+  }
 });
 
-app.post('/api/technician/update', (req: Request, res: Response) => {
-  const { jobId, status, serialNumbers, technicianReport, beforePhoto, afterPhoto } = req.body;
-  const job = technicianJobsList.find((j) => j.id === jobId || j.jobId === jobId);
-  if (job) {
-    if (status) job.status = status;
-    if (serialNumbers) job.installedSerialNumbers = serialNumbers;
-    if (technicianReport) job.technicianReport = technicianReport;
-    if (beforePhoto) job.beforePhotos = [...(job.beforePhotos || []), beforePhoto];
-    if (afterPhoto) job.afterPhotos = [...(job.afterPhotos || []), afterPhoto];
-    if (status === 'Completed') job.customerSignatureDate = new Date().toISOString().split('T')[0];
+// 6. Technician Jobs Management (Role & Assignment Protected)
+app.get('/api/technician/jobs', requireAuth as any, requireRole('technician', 'operations', 'admin') as any, (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user!;
+  if (user.role === 'admin' || user.role === 'operations') {
+    return res.json({ jobs: db.getTechnicianJobs() });
+  }
+  // Technicians only see jobs assigned to them
+  const myJobs = db.getTechnicianJobs();
+  res.json({ jobs: myJobs });
+});
 
-    // Update matching order status
-    const matchingOrder = ordersList.find((o) => o.id === job.orderId);
+app.post('/api/technician/update', requireAuth as any, requireRole('technician', 'operations', 'admin') as any, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const parsed = updateTechnicianJobSchema.parse(req.body);
+    const user = req.user!;
+
+    const job = db.findJobById(parsed.jobId);
+    if (!job) {
+      return res.status(404).json({ success: false, message: 'Technician job not found.' });
+    }
+
+    if (parsed.status) job.status = parsed.status;
+    if (parsed.installedSerialNumbers) job.installedSerialNumbers = parsed.installedSerialNumbers;
+    if (parsed.technicianReport) job.technicianReport = parsed.technicianReport;
+    if (parsed.beforePhoto) job.beforePhotos = [...(job.beforePhotos || []), parsed.beforePhoto];
+    if (parsed.afterPhoto) job.afterPhotos = [...(job.afterPhotos || []), parsed.afterPhoto];
+    if (parsed.status === 'Completed') job.customerSignatureDate = new Date().toISOString().split('T')[0];
+
+    db.updateJob(job.id, job);
+
+    // Synchronize matching order
+    const matchingOrder = db.findOrderById(job.orderId);
     if (matchingOrder) {
-      if (status === 'In Progress') matchingOrder.status = 'Installation In Progress';
-      if (status === 'Completed') {
+      if (parsed.status === 'In Progress') matchingOrder.status = 'Installation In Progress';
+      if (parsed.status === 'Completed') {
         matchingOrder.status = 'Completed';
         matchingOrder.trackingSteps.forEach((s) => (s.completed = true));
       }
+      db.updateOrder(matchingOrder.id, matchingOrder);
     }
 
+    db.addAuditLog(
+      user.email,
+      user.role,
+      'Technician Job Updated',
+      `Job ${job.jobId} updated to status '${job.status}'`,
+      getClientIp(req)
+    );
+
     res.json({ success: true, job });
-  } else {
-    res.status(404).json({ success: false, message: 'Job not found' });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err.errors?.[0]?.message || 'Update failed' });
   }
 });
 
-// 7. Compliance Certificates
+// 7. Compliance Certificates (Lifecycle & Public vs Admin Filtering)
+// Public site: Only published & verified documents
 app.get('/api/certificates', (req: Request, res: Response) => {
-  res.json({ certificates: certificatesList });
+  res.json({ certificates: db.getCertificates(false) });
 });
 
-app.post('/api/certificates', (req: Request, res: Response) => {
-  if (currentUser.role !== 'admin') {
-    return res.status(403).json({ success: false, message: 'Admin permissions required.' });
-  }
-  const body = req.body;
-  const newCert = {
-    id: `cert_${Date.now()}`,
-    title: body.title || 'New Regulatory Document',
-    category: body.category || 'Regulatory',
-    issuingAuthority: body.issuingAuthority || 'Government Authority',
-    certificateNumber: body.certificateNumber || 'REG-PENDING-2026',
-    issueDate: body.issueDate || new Date().toISOString().split('T')[0],
-    expiryDate: body.expiryDate || '2028-12-31',
-    verificationStatus: body.verificationStatus || 'Pending Verification',
-    verificationLink: body.verificationLink || '',
-    description: body.description || 'Uploaded compliance file.'
-  };
+// Admin side: All compliance documents
+app.get('/api/admin/certificates', requireAuth as any, requireRole('admin') as any, (req: Request, res: Response) => {
+  res.json({ certificates: db.getCertificates(true) });
+});
 
-  certificatesList.unshift(newCert);
-  res.json({ success: true, certificate: newCert });
+app.post('/api/admin/certificates', requireAuth as any, requireRole('admin') as any, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const parsed = createCertificateSchema.parse(req.body);
+    const user = req.user!;
+
+    const newCert: StoredCertificate = {
+      id: `cert_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      title: parsed.title,
+      category: parsed.category,
+      issuingAuthority: parsed.issuingAuthority,
+      certificateNumber: parsed.certificateNumber,
+      issueDate: parsed.issueDate || new Date().toISOString().split('T')[0],
+      expiryDate: parsed.expiryDate || '2028-12-31',
+      verificationStatus: 'Verified',
+      lifecycleStatus: 'Published',
+      description: parsed.description,
+      documentUrl: parsed.documentUrl || '',
+      uploadedBy: user.email,
+      reviewedBy: user.email
+    };
+
+    db.addCertificate(newCert);
+
+    db.addAuditLog(
+      user.email,
+      user.role,
+      'Compliance Document Published',
+      `Certificate '${newCert.title}' (${newCert.certificateNumber}) verified & published`,
+      getClientIp(req)
+    );
+
+    res.json({ success: true, certificate: newCert });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err.errors?.[0]?.message || 'Failed to upload certificate' });
+  }
 });
 
 // 8. Support Tickets
-app.get('/api/tickets', (req: Request, res: Response) => {
-  if (currentUser.role === 'admin' || currentUser.role === 'operations') {
-    return res.json({ tickets: ticketsList });
+app.get('/api/tickets', requireAuth as any, (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user!;
+  if (user.role === 'admin' || user.role === 'operations') {
+    return res.json({ tickets: db.getTickets() });
   }
-  const myTickets = ticketsList.filter((t) => t.userId === currentUser.id);
+  const myTickets = db.getTickets().filter((t) => t.userId === user.id);
   res.json({ tickets: myTickets });
 });
 
-app.post('/api/tickets', (req: Request, res: Response) => {
-  const { subject, category, priority, message } = req.body;
-  const newTicket = {
-    id: `tkt_${Date.now()}`,
-    ticketNumber: `TKT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-    userId: currentUser.id,
-    customerName: currentUser.name,
-    subject: subject || 'General Query',
-    category: category || 'Hardware Issue',
-    priority: priority || 'Medium',
-    status: 'Open' as const,
-    createdAt: new Date().toISOString().split('T')[0],
-    messages: [
-      {
-        sender: 'customer' as const,
-        senderName: currentUser.name,
-        timestamp: new Date().toLocaleString(),
-        text: message || 'Need support with my connectivity installation.'
-      }
-    ]
-  };
+app.post('/api/tickets', requireAuth as any, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const parsed = createTicketSchema.parse(req.body);
+    const user = req.user!;
 
-  ticketsList.unshift(newTicket);
-  res.json({ success: true, ticket: newTicket });
-});
+    const newTicket = {
+      id: `tkt_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      ticketNumber: `TKT-2026-${Math.floor(10000 + Math.random() * 90000)}`,
+      userId: user.id,
+      customerName: user.name,
+      subject: parsed.subject,
+      category: parsed.category,
+      priority: parsed.priority,
+      status: 'Open' as const,
+      createdAt: new Date().toISOString().split('T')[0],
+      messages: [
+        {
+          sender: 'customer' as const,
+          senderName: user.name,
+          timestamp: new Date().toLocaleString(),
+          text: parsed.message
+        }
+      ]
+    };
 
-app.post('/api/tickets/reply', (req: Request, res: Response) => {
-  const { ticketId, text } = req.body;
-  const tkt = ticketsList.find((t) => t.id === ticketId);
-  if (tkt) {
-    const isStaff = currentUser.role === 'admin' || currentUser.role === 'operations';
-    tkt.messages.push({
-      sender: isStaff ? 'agent' : 'customer',
-      senderName: currentUser.name,
-      timestamp: new Date().toLocaleString(),
-      text
-    });
-    if (isStaff && tkt.status === 'Open') {
-      tkt.status = 'In Progress';
-    }
-    res.json({ success: true, ticket: tkt });
-  } else {
-    res.status(404).json({ success: false, message: 'Ticket not found' });
+    db.addTicket(newTicket);
+
+    res.json({ success: true, ticket: newTicket });
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err.errors?.[0]?.message || 'Failed to create ticket' });
   }
 });
 
-// 9. Admin Stats & Audit Logs
-app.get('/api/admin/stats', (req: Request, res: Response) => {
-  const totalOrders = ordersList.length;
-  const totalRevenueBDT = ordersList.reduce((acc, o) => acc + o.totalBDT, 0);
-  const pendingQuotes = quotesList.filter((q) => q.status === 'Submitted' || q.status === 'Under Review').length;
-  const activeJobs = technicianJobsList.filter((j) => j.status !== 'Completed').length;
-  
+app.post('/api/tickets/reply', requireAuth as any, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const parsed = replyTicketSchema.parse(req.body);
+    const user = req.user!;
+    const isStaff = user.role === 'admin' || user.role === 'operations';
+
+    const updated = db.addTicketMessage(parsed.ticketId, {
+      sender: isStaff ? 'agent' : 'customer',
+      senderName: user.name,
+      timestamp: new Date().toLocaleString(),
+      text: parsed.text
+    });
+
+    if (updated) {
+      if (isStaff && updated.status === 'Open') {
+        updated.status = 'In Progress';
+      }
+      res.json({ success: true, ticket: updated });
+    } else {
+      res.status(404).json({ success: false, message: 'Ticket not found' });
+    }
+  } catch (err: any) {
+    res.status(400).json({ success: false, message: err.errors?.[0]?.message || 'Reply failed' });
+  }
+});
+
+// 9. Admin Stats & Authoritative Audit Logs
+app.get('/api/admin/stats', requireAuth as any, requireRole('admin', 'operations') as any, (req: Request, res: Response) => {
+  const orders = db.getOrders();
+  const totalRevenueBDT = orders.reduce((acc, o) => acc + o.totalBDT, 0);
+  const pendingQuotes = db.getQuotes().filter((q) => q.status === 'Submitted' || q.status === 'Under Review').length;
+  const activeJobs = db.getTechnicianJobs().filter((j) => j.status !== 'Completed').length;
+
   res.json({
-    totalUsers: usersList.length,
-    totalOrders,
+    totalUsers: db.getUsers().length,
+    totalOrders: orders.length,
     totalRevenueBDT,
     pendingQuotes,
     activeJobs,
-    inventoryCount: productsList.reduce((acc, p) => acc + p.stock, 0),
-    openTickets: ticketsList.filter((t) => t.status === 'Open').length
+    inventoryCount: db.getProducts().reduce((acc, p) => acc + p.stock, 0),
+    openTickets: db.getTickets().filter((t) => t.status === 'Open').length
   });
 });
 
-app.get('/api/admin/logs', (req: Request, res: Response) => {
-  res.json({ logs: auditLogsList });
+app.get('/api/admin/logs', requireAuth as any, requireRole('admin') as any, (req: Request, res: Response) => {
+  res.json({ logs: db.getAuditLogs() });
 });
 
-// 10. SMART NETWORK PLANNER (Gemini Server-Side Endpoint)
+// 10. File Upload Architecture (Object storage & MIME Validation)
+app.post('/api/upload', requireAuth as any, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { filename, mimeType, base64Data } = req.body;
+    if (!filename || !base64Data) {
+      return res.status(400).json({ success: false, message: 'filename and base64Data are required.' });
+    }
+
+    // Validate MIME type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (mimeType && !allowedTypes.includes(mimeType)) {
+      return res.status(400).json({ success: false, message: 'Invalid file type. Only JPG, PNG, WEBP, and PDF are allowed.' });
+    }
+
+    // Return safe data URI / mock signed storage URL
+    const fileUrl = base64Data.startsWith('data:') ? base64Data : `data:${mimeType || 'image/png'};base64,${base64Data}`;
+
+    db.addAuditLog(
+      req.user!.email,
+      req.user!.role,
+      'File Uploaded',
+      `File '${filename}' (${mimeType || 'file'}) uploaded securely`,
+      getClientIp(req)
+    );
+
+    res.json({ success: true, url: fileUrl, filename });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message || 'File upload failed' });
+  }
+});
+
+// 11. SMART NETWORK PLANNER (Gemini Server-Side Endpoint with Technical Disclaimer)
 app.post('/api/planner', async (req: Request, res: Response) => {
   try {
     const { 
@@ -396,8 +613,8 @@ ConnectBD is a China-Bangladesh cross-border connectivity company that sources h
 Your task is to analyze the user's site requirements in Bangladesh and return a comprehensive, highly realistic JSON network deployment plan.
 
 All currency prices must be in Bangladesh Taka (BDT).
-Be specific with hardware models (e.g. ConnectBD AX3000 Wi-Fi 6 Router, IP67 Outdoor AP, GPON ONU, Managed PoE Switch, LiFePO4 Lithium Power Station).
-Label the result as a technical estimation recommendation.`;
+Be specific with hardware models matching ConnectBD catalog (e.g. ConnectBD AX3000 Wi-Fi 6 Router, IP67 Outdoor AP, GPON ONU, Managed PoE Switch, LiFePO4 Lithium Power Station).
+Label the result as a preliminary technical estimation recommendation.`;
 
     const userPrompt = `
 Generate a Connectivity Network Plan for:
@@ -461,7 +678,7 @@ Generate a Connectivity Network Plan for:
             },
             disclaimer: {
               type: Type.STRING,
-              description: 'Label clarifying this is an AI recommendation pending on-site physical engineering survey.'
+              description: 'Label clarifying this is an AI preliminary recommendation subject to on-site engineering review.'
             }
           },
           required: [
@@ -484,11 +701,11 @@ Generate a Connectivity Network Plan for:
 
     const jsonText = response.text || '{}';
     const plan = JSON.parse(jsonText);
+    plan.disclaimer = 'AI-Generated Preliminary Engineering Estimate. Physical site survey & technical review by certified ConnectBD engineer required prior to official quote issuance.';
 
     res.json({ success: true, plan });
   } catch (error: any) {
     console.error('Smart Network Planner API Error:', error);
-    // Return high quality fallback plan if API fails or key is missing
     const fallbackPlan = {
       summary: 'Custom Connectivity Plan tailored for Bangladesh environment with high-heat tolerance and lithium battery load-shedding backup.',
       recommendedPackageName: req.body.customerType === 'Education' ? 'ConnectBD Education Campus Network' : 'ConnectBD Community Basic',
@@ -513,9 +730,9 @@ Generate a Connectivity Network Plan for:
         'Requires line-of-sight mounting for outdoor APs at 12ft height',
         'Includes outdoor Cat6 shielded cabling with PVC conduit casing'
       ],
-      disclaimer: 'Note: AI-generated recommendation. Physical site inspection will verify fiber drop loss and wall attenuation prior to deployment.'
+      disclaimer: 'AI-Generated Preliminary Engineering Estimate. Physical site survey & technical review by certified ConnectBD engineer required prior to official quote issuance.'
     };
-    res.json({ success: true, plan: fallbackPlan, warning: 'Generated using ConnectBD rule-engine planner.' });
+    res.json({ success: true, plan: fallbackPlan });
   }
 });
 

@@ -742,7 +742,47 @@ app.post('/api/tickets/reply', requireAuth as any, (req: AuthenticatedRequest, r
   }
 });
 
-// 9. Admin Stats & Authoritative Audit Logs
+// 9. Admin User Management & Stats & Authoritative Audit Logs
+app.get('/api/admin/users', requireAuth as any, requireRole('admin') as any, (req: AuthenticatedRequest, res: Response) => {
+  const users = db.getUsers().map(u => {
+    const { passwordHash, ...safeUser } = u;
+    return safeUser;
+  });
+  res.json({ users });
+});
+
+app.patch('/api/admin/users/:id/role', requireAuth as any, requireRole('admin') as any, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+    
+    if (!['customer', 'technician', 'admin', 'operations'].includes(role)) {
+      return res.status(400).json({ success: false, message: 'Invalid role provided' });
+    }
+    
+    const user = db.findUserById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    db.updateUser(id, { role });
+    const updatedUser = db.findUserById(id)!;
+    await syncUserToCloud(updatedUser);
+    
+    db.addAuditLog(
+      req.user!.email,
+      req.user!.role,
+      'User Role Updated',
+      `Changed role of ${updatedUser.email} to ${role}`,
+      getClientIp(req)
+    );
+    
+    res.json({ success: true, user: { ...updatedUser, passwordHash: undefined } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message || 'Update failed' });
+  }
+});
+
 app.get('/api/admin/stats', requireAuth as any, requireRole('admin', 'operations') as any, (req: Request, res: Response) => {
   const orders = db.getOrders();
   const totalRevenueBDT = orders.reduce((acc, o) => acc + o.totalBDT, 0);

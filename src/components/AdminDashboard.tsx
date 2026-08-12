@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile, Order, QuoteRequest, Product, ComplianceCertificate, AuditLog } from '../types';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { 
   BarChart3, 
   DollarSign, 
@@ -39,8 +40,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenUploadCertModal,
   onAddProductSuccess
 }) => {
-  const [activeAdminTab, setActiveAdminTab] = useState<'orders' | 'quotes' | 'inventory' | 'compliance' | 'audit'>('inventory');
+  const [activeAdminTab, setActiveAdminTab] = useState<'orders' | 'quotes' | 'inventory' | 'compliance' | 'audit' | 'users' | 'analytics'>('inventory');
   
+  // User Management State
+  const [systemUsers, setSystemUsers] = useState<UserProfile[]>([]);
+  const [isFetchingUsers, setIsFetchingUsers] = useState(false);
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (activeAdminTab === 'users' && systemUsers.length === 0 && !isFetchingUsers) {
+      fetchUsers();
+    }
+  }, [activeAdminTab]);
+
+  const fetchUsers = async () => {
+    setIsFetchingUsers(true);
+    try {
+      const res = await fetch('/api/admin/users');
+      const data = await res.json();
+      if (data.users) setSystemUsers(data.users);
+    } catch (err) {
+      console.error('Failed to fetch users', err);
+    } finally {
+      setIsFetchingUsers(false);
+    }
+  };
+
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    setUpdatingUserId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/role`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole })
+      });
+      const data = await res.json();
+      if (data.success && data.user) {
+        setSystemUsers(prev => prev.map(u => u.id === userId ? data.user : u));
+      } else {
+        alert(data.message || 'Failed to update role');
+      }
+    } catch (err) {
+      console.error('Failed to update role', err);
+      alert('Error updating role');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
   // Product Modal State
   const [showProductModal, setShowProductModal] = useState(false);
   const [prodName, setProdName] = useState('');
@@ -167,7 +214,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             { id: 'quotes', label: `Quotation Pipeline (${quotes.length})` },
             { id: 'inventory', label: `Products & Inventory (${products.length})` },
             { id: 'compliance', label: `Regulatory Records (${certificates.length})` },
-            { id: 'audit', label: `Audit Trail (${auditLogs.length})` }
+            { id: 'audit', label: `Audit Trail (${auditLogs.length})` },
+            { id: 'users', label: `User Management` },
+            { id: 'analytics', label: `Inventory Analytics` }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -503,6 +552,99 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <span className="text-slate-500 text-[10px]">{log.timestamp} • User: {log.userEmail}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* User Management */}
+        {activeAdminTab === 'users' && (
+          <div className="bg-slate-900 rounded-3xl border border-slate-800 p-6 space-y-4 shadow-xl">
+            <h3 className="text-base font-bold text-white">Registered Users</h3>
+            {isFetchingUsers ? (
+              <div className="text-slate-400 text-sm py-4">Loading users...</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400">
+                      <th className="p-3">User</th>
+                      <th className="p-3">Email</th>
+                      <th className="p-3">Registered</th>
+                      <th className="p-3">Current Role</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/80">
+                    {systemUsers.map((u) => (
+                      <tr key={u.id} className="hover:bg-slate-950/60">
+                        <td className="p-3">
+                          <div className="text-white font-bold">{u.name}</div>
+                          {u.organization && <div className="text-[10px] text-slate-400">{u.organization}</div>}
+                        </td>
+                        <td className="p-3 text-slate-300">{u.email}</td>
+                        <td className="p-3 text-slate-500">{new Date(u.createdAt).toLocaleDateString()}</td>
+                        <td className="p-3">
+                          <div className="flex items-center space-x-2">
+                            <select
+                              value={u.role}
+                              onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                              disabled={updatingUserId === u.id || u.id === currentUser?.id}
+                              className="bg-slate-950 border border-slate-700 text-slate-200 rounded p-1.5 text-xs outline-none focus:border-cyan-500 disabled:opacity-50"
+                            >
+                              <option value="customer">Customer</option>
+                              <option value="technician">Technician</option>
+                              <option value="operations">Operations</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                            {updatingUserId === u.id && <span className="text-cyan-400 text-[10px] animate-pulse">Updating...</span>}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Inventory Analytics */}
+        {activeAdminTab === 'analytics' && (
+          <div className="bg-slate-900 rounded-3xl border border-slate-800 p-6 space-y-6 shadow-xl">
+            <div>
+              <h3 className="text-base font-bold text-white">Inventory Analytics & Trends</h3>
+              <p className="text-xs text-slate-400">Visualize current stock levels against recommended reorder thresholds.</p>
+            </div>
+            
+            <div className="h-[400px] w-full pt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={products.map(p => ({
+                    name: p.name.length > 20 ? p.name.substring(0, 20) + '...' : p.name,
+                    stock: p.stock,
+                    reorderPoint: 50 // Simulated static reorder point for visualization
+                  }))}
+                  margin={{ top: 20, right: 30, left: 0, bottom: 60 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="#64748b" 
+                    fontSize={10}
+                    angle={-45}
+                    textAnchor="end"
+                    tick={{ fill: '#94a3b8' }}
+                  />
+                  <YAxis stroke="#64748b" fontSize={10} tick={{ fill: '#94a3b8' }} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#f8fafc' }}
+                    itemStyle={{ color: '#38bdf8' }}
+                    cursor={{ fill: '#1e293b' }}
+                  />
+                  <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
+                  <Bar dataKey="stock" name="Current Stock" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="reorderPoint" name="Reorder Point" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
         )}

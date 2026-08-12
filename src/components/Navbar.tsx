@@ -52,19 +52,14 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'products', label: language === 'EN' ? 'Hardware Store' : 'হার্ডওয়্যার' },
     { id: 'services', label: language === 'EN' ? 'Services' : 'সার্ভিস' },
     { id: 'planner', label: language === 'EN' ? 'AI Planner' : 'এআই প্ল্যানার', isSpecial: true },
-    { id: 'supply-chain', label: language === 'EN' ? 'Cross-Border Supply' : 'ক্রস-বর্ডার সাপ্লাই' },
-    { id: 'compliance', label: language === 'EN' ? 'Compliance' : 'অনুমোদন ও তথ্য' },
-    { id: 'impact', label: language === 'EN' ? 'Community Impact' : 'সামাজিক প্রভাব' },
     { id: 'support', label: language === 'EN' ? 'Support' : 'সাপোর্ট' }
   ];
 
-  if (currentUser.role === 'admin') {
-    mainNavItems.push({
-      id: 'admin-dashboard',
-      label: language === 'EN' ? 'Admin / Inventory' : 'অ্যাডমিন / ইনভেন্টরি',
-      isSpecial: true // Give it a special highlighted style
-    });
-  }
+  const moreItems = [
+    { id: 'supply-chain', label: language === 'EN' ? 'Cross-Border Supply' : 'ক্রস-বর্ডার সাপ্লাই' },
+    { id: 'compliance', label: language === 'EN' ? 'Compliance' : 'অনুমোদন ও তথ্য' },
+    { id: 'impact', label: language === 'EN' ? 'Community Impact' : 'সামাজিক প্রভাব' }
+  ];
 
   const getDashboardTab = () => {
     switch (currentUser.role) {
@@ -79,7 +74,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     switch (currentUser.role) {
       case 'technician': return language === 'EN' ? 'Tech Field Ops' : 'টেকনিশিয়ান প্যানেল';
       case 'admin':
-      case 'operations': return language === 'EN' ? 'Control Tower' : 'অ্যাডমিন প্যানেল';
+      case 'operations': return language === 'EN' ? 'Admin / Inventory' : 'অ্যাডমিন / ইনভেন্টরি';
       default: return language === 'EN' ? 'My Dashboard' : 'মাই ড্যাশবোর্ড';
     }
   };
@@ -110,18 +105,47 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`px-2.5 py-1.5 rounded-lg text-xs xl:text-sm font-medium transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm transition-all flex items-center ${
                 activeTab === item.id
-                  ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200/80 shadow-2xs'
+                  ? 'bg-blue-600 text-white font-bold shadow-md'
                   : item.isSpecial
-                  ? 'text-blue-700 bg-blue-50/80 border border-blue-200 hover:bg-blue-100 flex items-center space-x-1 font-semibold'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                  ? 'text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 font-semibold'
+                  : 'text-slate-600 font-medium hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              {item.isSpecial && <Sparkles className="w-3.5 h-3.5 text-blue-600 inline mr-1" />}
+              {item.isSpecial && (
+                <Sparkles className={`w-3.5 h-3.5 inline mr-1 ${activeTab === item.id ? 'text-blue-200' : 'text-blue-600'}`} />
+              )}
               <span>{item.label}</span>
             </button>
           ))}
+          
+          {/* More Items Dropdown */}
+          <div className="relative group">
+            <button className={`px-3 py-1.5 rounded-lg text-xs xl:text-sm flex items-center transition-all ${
+                moreItems.some(item => activeTab === item.id)
+                  ? 'bg-blue-600 text-white font-bold shadow-md'
+                  : 'text-slate-600 font-medium hover:text-slate-900 hover:bg-slate-100'
+              }`}>
+              <span>{language === 'EN' ? 'About' : 'সম্পর্কে'}</span>
+              <ChevronDown className={`w-3 h-3 ml-1 transition-transform group-hover:rotate-180 ${moreItems.some(item => activeTab === item.id) ? 'text-blue-200' : 'text-slate-500'}`} />
+            </button>
+            <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-1.5 overflow-hidden">
+              {moreItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`block w-full text-left px-4 py-2 text-xs xl:text-sm transition-colors ${
+                    activeTab === item.id 
+                      ? 'bg-blue-50 text-blue-700 font-bold' 
+                      : 'text-slate-700 hover:bg-slate-50 hover:text-blue-600'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </nav>
 
         {/* Action Buttons */}
@@ -196,7 +220,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       {mobileMenuOpen && (
         <div className="lg:hidden bg-white border-b border-slate-200 px-4 py-4 space-y-2 shadow-lg">
           <div className="grid grid-cols-2 gap-2 pb-3 border-b border-slate-200">
-            {mainNavItems.map((item) => (
+            {[...mainNavItems, ...moreItems].map((item) => (
               <button
                 key={item.id}
                 onClick={() => {
@@ -204,7 +228,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setMobileMenuOpen(false);
                 }}
                 className={`px-3 py-2 rounded-lg text-xs font-medium text-left ${
-                  activeTab === item.id ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200' : 'text-slate-700 hover:bg-slate-100'
+                  activeTab === item.id ? 'bg-blue-600 text-white font-bold shadow-md' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
                 {item.label}

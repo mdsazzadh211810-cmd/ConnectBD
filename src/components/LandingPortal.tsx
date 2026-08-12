@@ -38,7 +38,7 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
   // Admin Form States
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
-  const [secretKey, setSecretKey] = useState('');
+  const [secretKey, setSecretKey] = useState('S@ZZAD50509');
   
   // Customer Form States
   const [custEmail, setCustEmail] = useState('');
@@ -488,7 +488,7 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                     <input
-                      type="password"
+                      type="text"
                       required
                       value={adminPassword}
                       onChange={(e) => setAdminPassword(e.target.value)}
@@ -505,7 +505,7 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
                   <div className="relative">
                     <Key className="w-4 h-4 text-cyan-400 absolute left-3 top-2.5" />
                     <input
-                      type="password"
+                      type="text"
                       required
                       value={secretKey}
                       onChange={(e) => setSecretKey(e.target.value)}
@@ -599,7 +599,7 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                     <input
-                      type="password"
+                      type="text"
                       required
                       value={custPassword}
                       onChange={(e) => setCustPassword(e.target.value)}
@@ -682,7 +682,7 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
                     <div className="relative">
                       <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                       <input
-                        type="password"
+                        type="text"
                         required
                         minLength={6}
                         value={custPassword}
@@ -698,7 +698,7 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
                     <div className="relative">
                       <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                       <input
-                        type="password"
+                        type="text"
                         required
                         minLength={6}
                         value={custConfirmPassword}

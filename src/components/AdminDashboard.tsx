@@ -39,7 +39,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenUploadCertModal,
   onAddProductSuccess
 }) => {
-  const [activeAdminTab, setActiveAdminTab] = useState<'orders' | 'quotes' | 'inventory' | 'compliance' | 'audit'>('orders');
+  const [activeAdminTab, setActiveAdminTab] = useState<'orders' | 'quotes' | 'inventory' | 'compliance' | 'audit'>('inventory');
   
   // Product Modal State
   const [showProductModal, setShowProductModal] = useState(false);
@@ -165,7 +165,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           {[
             { id: 'orders', label: `Orders (${orders.length})` },
             { id: 'quotes', label: `Quotation Pipeline (${quotes.length})` },
-            { id: 'inventory', label: `Inventory & SKUs (${products.length})` },
+            { id: 'inventory', label: `Products & Inventory (${products.length})` },
             { id: 'compliance', label: `Regulatory Records (${certificates.length})` },
             { id: 'audit', label: `Audit Trail (${auditLogs.length})` }
           ].map((tab) => (
@@ -262,8 +262,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="bg-slate-900 rounded-3xl border border-slate-800 p-6 space-y-4 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h3 className="text-base font-bold text-white">Sourced Hardware Inventory Stock</h3>
-                <p className="text-xs text-slate-400">Admin product catalog, pricing, description & SEO keyword manager</p>
+                <h3 className="text-base font-bold text-white">Product Management & Store Inventory</h3>
+                <p className="text-xs text-slate-400">Upload your items, specify categories, set pricing, and manage what you want to sell.</p>
               </div>
 
               <button
@@ -272,10 +272,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   setErrorMsg('');
                   setSuccessMsg('');
                 }}
-                className="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-1.5 self-start sm:self-auto"
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-1.5 self-start sm:self-auto"
               >
                 <Plus className="w-4 h-4" />
-                <span>নতুন প্রোডাক্ট আপলোড (Add Product)</span>
+                <span>Upload New Product</span>
               </button>
             </div>
 
@@ -321,7 +321,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div>
                   <h3 className="text-lg font-black text-white">নতুন প্রোডাক্ট আপলোড • Upload Product</h3>
-                  <p className="text-xs text-slate-400">Specify details, description, pricing & SEO keywords for search discovery</p>
+                  <p className="text-xs text-slate-400">Specify exactly what you want to sell, the category, pricing, and SEO keywords.</p>
                 </div>
                 <button
                   onClick={() => setShowProductModal(false)}

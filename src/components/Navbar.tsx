@@ -24,8 +24,8 @@ interface NavbarProps {
   cartCount: number;
   onOpenCart: () => void;
   onOpenQuote: () => void;
-  language: 'EN' | 'BN';
-  setLanguage: (lang: 'EN' | 'BN') => void;
+  language: 'EN' | 'BN' | 'ZH';
+  setLanguage: (lang: 'EN' | 'BN' | 'ZH') => void;
   onShowGatewayPortal?: () => void;
   onOpenAuthModal?: () => void;
 }
@@ -45,20 +45,22 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const t = (en: string, bn: string, zh: string) => language === 'ZH' ? zh : language === 'BN' ? bn : en;
+
   const mainNavItems = [
-    { id: 'home', label: language === 'EN' ? 'Home' : 'হোম' },
-    { id: 'solutions', label: language === 'EN' ? 'Solutions' : 'সমাধান' },
-    { id: 'packages', label: language === 'EN' ? 'Packages' : 'প্যাকেজ' },
-    { id: 'products', label: language === 'EN' ? 'Hardware Store' : 'হার্ডওয়্যার' },
-    { id: 'services', label: language === 'EN' ? 'Services' : 'সার্ভিস' },
-    { id: 'planner', label: language === 'EN' ? 'AI Planner' : 'এআই প্ল্যানার', isSpecial: true },
-    { id: 'support', label: language === 'EN' ? 'Support' : 'সাপোর্ট' }
+    { id: 'home', label: t('Home', 'হোম', '主页') },
+    { id: 'solutions', label: t('Solutions', 'সমাধান', '解决方案') },
+    { id: 'packages', label: t('Packages', 'প্যাকেজ', '套餐') },
+    { id: 'products', label: t('Hardware Store', 'হার্ডওয়্যার', '硬件商店') },
+    { id: 'services', label: t('Services', 'সার্ভিস', '服务') },
+    { id: 'planner', label: t('AI Planner', 'এআই প্ল্যানার', 'AI规划器'), isSpecial: true },
+    { id: 'support', label: t('Support', 'সাপোর্ট', '支持') }
   ];
 
   const moreItems = [
-    { id: 'supply-chain', label: language === 'EN' ? 'Cross-Border Supply' : 'ক্রস-বর্ডার সাপ্লাই' },
-    { id: 'compliance', label: language === 'EN' ? 'Compliance' : 'অনুমোদন ও তথ্য' },
-    { id: 'impact', label: language === 'EN' ? 'Community Impact' : 'সামাজিক প্রভাব' }
+    { id: 'supply-chain', label: t('Cross-Border Supply', 'ক্রস-বর্ডার সাপ্লাই', '跨境供应') },
+    { id: 'compliance', label: t('Compliance', 'অনুমোদন ও তথ্য', '合规') },
+    { id: 'impact', label: t('Community Impact', 'সামাজিক প্রভাব', '社区影响') }
   ];
 
   const getDashboardTab = () => {
@@ -72,10 +74,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const getDashboardLabel = () => {
     switch (currentUser.role) {
-      case 'technician': return language === 'EN' ? 'Tech Field Ops' : 'টেকনিশিয়ান প্যানেল';
+      case 'technician': return t('Tech Field Ops', 'টেকনিশিয়ান প্যানেল', '现场技术');
       case 'admin':
-      case 'operations': return language === 'EN' ? 'Admin / Inventory' : 'অ্যাডমিন / ইনভেন্টরি';
-      default: return language === 'EN' ? 'My Dashboard' : 'মাই ড্যাশবোর্ড';
+      case 'operations': return t('Admin / Inventory', 'অ্যাডমিন / ইনভেন্টরি', '管理/库存');
+      default: return t('My Dashboard', 'মাই ড্যাশবোর্ড', '我的仪表板');
     }
   };
 
@@ -133,7 +135,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ? 'bg-blue-600 text-white font-bold shadow-md'
                   : 'text-slate-600 font-medium hover:text-slate-900 hover:bg-slate-100'
               }`}>
-              <span>{language === 'EN' ? 'About' : 'সম্পর্কে'}</span>
+              <span>{t('About', 'সম্পর্কে', '关于我们')}</span>
               <ChevronDown className={`w-3 h-3 ml-1 transition-transform group-hover:rotate-180 ${moreItems.some(item => activeTab === item.id) ? 'text-blue-200' : 'text-slate-500'}`} />
             </button>
             <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 py-1.5 overflow-hidden">
@@ -179,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={onOpenQuote}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 transition-colors shadow-2xs"
           >
-            {language === 'EN' ? 'Request Quote' : 'কোটেশন চান'}
+            {t('Request Quote', 'কোটেশন চান', '请求报价')}
           </button>
 
           {onShowGatewayPortal && (
@@ -189,10 +191,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               title="Return to Dual Entry Landing Page"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-              <span>{language === 'EN' ? 'Portal Entry' : 'প্রবেশদ্বার'}</span>
+              <span>{t('Portal Entry', 'প্রবেশদ্বার', '门户入口')}</span>
             </button>
           )}
 
+          <button
+            onClick={onOpenAuthModal}
+            className="p-2 text-slate-700 hover:text-slate-900 bg-slate-100/80 hover:bg-slate-200/80 rounded-lg border border-slate-200 transition-colors"
+            title="My Account"
+          >
+            <User className="w-5 h-5" />
+          </button>
           <button
             onClick={() => setActiveTab(getDashboardTab())}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 ${
@@ -208,6 +217,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Mobile menu button */}
         <div className="flex lg:hidden items-center space-x-2">
+          <button
+            onClick={onOpenAuthModal}
+            className="p-2 text-slate-700 bg-slate-100 rounded-lg border border-slate-200"
+            title="My Account"
+          >
+            <User className="w-5 h-5" />
+          </button>
           <button
             onClick={onOpenCart}
             className="relative p-2 text-slate-700 bg-slate-100 rounded-lg border border-slate-200"
@@ -270,7 +286,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }}
               className="w-full py-2 bg-slate-100 text-slate-800 font-semibold text-xs rounded-lg border border-slate-300"
             >
-              {language === 'EN' ? 'Request Custom Quote' : 'কাস্টম কোটেশন'}
+              {t('Request Custom Quote', 'কাস্টম কোটেশন', '请求定制报价')}
             </button>
           </div>
         </div>

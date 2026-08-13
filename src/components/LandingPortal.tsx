@@ -23,8 +23,8 @@ import { UserRole, UserProfile } from '../types';
 interface LandingPortalProps {
   onLoginSuccess: (user: UserProfile) => void;
   onExplorePublicGuest: () => void;
-  language: 'EN' | 'BN';
-  setLanguage: (lang: 'EN' | 'BN') => void;
+  language: 'EN' | 'BN' | 'ZH';
+  setLanguage: (lang: 'EN' | 'BN' | 'ZH') => void;
 }
 
 export const LandingPortal: React.FC<LandingPortalProps> = ({
@@ -34,6 +34,8 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
   setLanguage
 }) => {
   const [selectedPortal, setSelectedPortal] = useState<'none' | 'admin' | 'customer_login' | 'customer_signup'>('none');
+
+  const t = (en: string, bn: string, zh: string) => language === 'ZH' ? zh : language === 'BN' ? bn : en;
   
   // Admin Form States
   const [adminEmail, setAdminEmail] = useState('');
@@ -279,13 +281,23 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
             >
               BN
             </button>
+            <button
+              onClick={() => setLanguage('ZH')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
+                language === 'ZH'
+                  ? 'bg-cyan-500/20 text-cyan-400 shadow-sm border border-cyan-500/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              ZH
+            </button>
           </div>
 
           <button
             onClick={onExplorePublicGuest}
             className="text-xs font-semibold text-slate-400 hover:text-cyan-400 transition-colors flex items-center space-x-1 px-3 py-1.5 rounded-lg border border-slate-800 hover:border-cyan-500/40 bg-slate-900/50 hidden sm:flex"
           >
-            <span>{language === 'EN' ? 'Explore Public Site' : 'ওয়েবসাইট ভিজিট করুন'}</span>
+            <span>{t('Explore Public Site', 'ওয়েবসাইট ভিজিট করুন', '探索公共网站')}</span>
             <ArrowRight className="w-3.5 h-3.5 ml-1" />
           </button>
         </div>
@@ -296,16 +308,14 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
         
         <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/30 text-cyan-300 text-xs font-semibold mb-6 shadow-sm">
           <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-          <span>{language === 'EN' ? 'Select Portal Entry' : 'ওয়েবসাইট প্রবেশদ্বার নির্বাচন করুন'}</span>
+          <span>{t('Select Portal Entry', 'ওয়েবসাইট প্রবেশদ্বার নির্বাচন করুন', '选择门户入口')}</span>
         </div>
 
         <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight max-w-3xl">
-          {language === 'EN' ? 'Welcome to ' : 'স্বাগতম '}<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-emerald-400">ConnectBD</span>{language === 'EN' ? ' Platform' : ' প্ল্যাটফর্মে'}
+          {t('Welcome to ', 'স্বাগতম ', '欢迎来到 ')}<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-emerald-400">ConnectBD</span>{t(' Platform', ' প্ল্যাটফর্মে', ' 平台')}
         </h1>
         <p className="mt-4 text-sm sm:text-base text-slate-300 max-w-2xl leading-relaxed">
-          {language === 'EN' 
-            ? 'Please select your portal to continue. You can log in to the Customer Portal or access the Admin Control Tower.'
-            : 'অনুগ্রহ করে আপনার পোর্টাল নির্বাচন করুন। অ্যাডমিন প্যানেল অথবা কাস্টমার পোর্টালে সাইন আপ / লগইন করে প্রবেশ করুন।'}
+          {t('Please select your portal to continue. You can log in to the Customer Portal or access the Admin Control Tower.', 'অনুগ্রহ করে আপনার পোর্টাল নির্বাচন করুন। অ্যাডমিন প্যানেল অথবা কাস্টমার পোর্টালে সাইন আপ / লগইন করে প্রবেশ করুন।', '请选择您的门户以继续。您可以登录客户门户或访问管理控制塔。')}
         </p>
 
         {/* Dual Portal Selection Cards */}
@@ -319,25 +329,21 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
               </div>
               <div>
                 <span className="text-[11px] uppercase tracking-wider font-bold text-cyan-400">
-                  {language === 'EN' ? 'Admin Option' : 'অ্যাডমিন অপশন'}
+                  {t('Admin Option', 'অ্যাডমিন অপশন', '管理员选项')}
                 </span>
                 <h3 className="text-xl font-bold text-white mt-1">Admin Control Tower</h3>
                 <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-                  {language === 'EN' 
-                    ? 'Manage products, pricing, SEO keywords, update order statuses, and maintain regulatory records securely.'
-                    : 'নতুন প্রোডাক্ট আপলোড, প্রাইসিং তালিকা, এসইও (SEO) কিওয়ার্ড সেটআপ, অর্ডারের স্ট্যাটাস আপডেট এবং রেগুলেটরি রেকর্ডস ম্যানেজ করুন।'}
+                  {t('Manage products, pricing, SEO keywords, update order statuses, and maintain regulatory records securely.', 'নতুন প্রোডাক্ট আপলোড, প্রাইসিং তালিকা, এসইও (SEO) কিওয়ার্ড সেটআপ, অর্ডারের স্ট্যাটাস আপডেট এবং রেগুলেটরি রেকর্ডস ম্যানেজ করুন।', '安全地管理产品、定价、SEO关键字，更新订单状态，并维护监管记录。')}
                 </p>
               </div>
 
               <div className="pt-2 text-[11px] text-slate-300 bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-1">
                 <div className="flex items-center space-x-1.5 text-cyan-300 font-semibold">
                   <Key className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>{language === 'EN' ? 'Admin Secret Key Required' : 'অ্যাডমিন সিক্রেট কি আবশ্যক'}</span>
+                  <span>{t('Admin Secret Key Required', 'অ্যাডমিন সিক্রেট কি আবশ্যক', '需要管理员密钥')}</span>
                 </div>
                 <p className="text-slate-400">
-                  {language === 'EN'
-                    ? 'Entering the admin portal requires an authorized secret key.'
-                    : 'অ্যাডমিন হিসেবে ঢুকতে পাসওয়ার্ড এবং সিক্রেট কি প্রদান করতে হবে।'}
+                  {t('Entering the admin portal requires an authorized secret key.', 'অ্যাডমিন হিসেবে ঢুকতে পাসওয়ার্ড এবং সিক্রেট কি প্রদান করতে হবে।', '进入管理员门户需要授权的密钥。')}
                 </p>
               </div>
             </div>
@@ -351,7 +357,7 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
               className="mt-6 w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-cyan-500/20 flex items-center justify-center space-x-2"
             >
               <Lock className="w-4 h-4" />
-              <span>{language === 'EN' ? 'Enter Admin Portal' : 'অ্যাডমিন লগইন'}</span>
+              <span>{t('Enter Admin Portal', 'অ্যাডমিন লগইন', '进入管理员门户')}</span>
             </button>
           </div>
 
@@ -363,25 +369,21 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
               </div>
               <div>
                 <span className="text-[11px] uppercase tracking-wider font-bold text-blue-400">
-                  {language === 'EN' ? 'Customer Option' : 'কাস্টমার অপশন'}
+                  {t('Customer Option', 'কাস্টমার অপশন', '客户选项')}
                 </span>
                 <h3 className="text-xl font-bold text-white mt-1">Customer Portal</h3>
                 <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-                  {language === 'EN'
-                    ? 'Log in or sign up to purchase broadband packages, track hardware orders, and use the Smart Network Planner.'
-                    : 'ব্রডব্যান্ড ইন্টারনেট প্যাকেজ, হার্ডওয়্যার শপ, স্মার্ট নেটওয়ার্ক প্ল্যানার এবং ইনস্টলেশন ট্র্যাকিং ব্যবহার করতে সাইন আপ বা লগইন করুন।'}
+                  {t('Log in or sign up to purchase broadband packages, track hardware orders, and use the Smart Network Planner.', 'ব্রডব্যান্ড ইন্টারনেট প্যাকেজ, হার্ডওয়্যার শপ, স্মার্ট নেটওয়ার্ক প্ল্যানার এবং ইনস্টলেশন ট্র্যাকিং ব্যবহার করতে সাইন আপ বা লগইন করুন।', '登录或注册以购买宽带套餐、跟踪硬件订单，并使用智能网络规划器。')}
                 </p>
               </div>
 
               <div className="pt-2 text-[11px] text-slate-300 bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-1">
                 <div className="flex items-center space-x-1.5 text-blue-300 font-semibold">
                   <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
-                  <span>{language === 'EN' ? 'Secure Customer Account' : 'নিরাপদ কাস্টমার অ্যাকাউন্ট'}</span>
+                  <span>{t('Secure Customer Account', 'নিরাপদ কাস্টমার অ্যাকাউন্ট', '安全客户帐户')}</span>
                 </div>
                 <p className="text-slate-400">
-                  {language === 'EN'
-                    ? 'Sign up with your email, name, and phone number for immediate verified access.'
-                    : 'জিমেইল আইডি, নাম, ঠিকানা এবং ফোন নম্বর দিয়ে সাইন আপ করার পর তাতক্ষণিক ভেরিফাইড অ্যাক্সেস মিলবে।'}
+                  {t('Sign up with your email, name, and phone number for immediate verified access.', 'জিমেইল আইডি, নাম, ঠিকানা এবং ফোন নম্বর দিয়ে সাইন আপ করার পর তাতক্ষণিক ভেরিফাইড অ্যাক্সেস মিলবে।', '使用您的电子邮件、姓名和电话号码注册即可获得即时验证访问权限。')}
                 </p>
               </div>
             </div>
@@ -395,7 +397,7 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
                 }}
                 className="py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition-all border border-slate-700 text-center"
               >
-                {language === 'EN' ? 'Login' : 'লগইন (Login)'}
+                {t('Login', 'লগইন (Login)', '登录')}
               </button>
 
               <button
@@ -407,7 +409,7 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
                 className="py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-blue-600/20 text-center flex items-center justify-center space-x-1"
               >
                 <User className="w-3.5 h-3.5" />
-                <span>{language === 'EN' ? 'Sign Up' : 'সাইন আপ (Sign Up)'}</span>
+                <span>{t('Sign Up', 'সাইন আপ (Sign Up)', '注册')}</span>
               </button>
             </div>
           </div>

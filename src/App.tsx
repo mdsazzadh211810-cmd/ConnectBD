@@ -57,8 +57,8 @@ export default function App() {
 
   // Navigation & User State
   const [activeTab, setActiveTab] = useState<string>('home');
-  const [currentUser, setCurrentUser] = useState<UserProfile>(INITIAL_USERS[0]);
-  const [language, setLanguage] = useState<'EN' | 'BN'>('EN');
+  const [currentUser, setCurrentUser] = useState<UserProfile>({ id: "guest", name: "Guest User", email: "", role: "customer", verified: false });
+  const [language, setLanguage] = useState<'EN' | 'BN' | 'ZH'>('EN');
 
   // E-Commerce & Core Business States
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -204,7 +204,9 @@ export default function App() {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch (e) {}
-    setCurrentUser(INITIAL_USERS[0]);
+    setCurrentUser({ id: "guest", name: "Guest User", email: "", role: "customer", verified: false });
+    setShowGatewayPortal(true);
+    setActiveTab('home');
   };
 
   // Cart Functions

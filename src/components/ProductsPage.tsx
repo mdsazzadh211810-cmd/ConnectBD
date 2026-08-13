@@ -116,9 +116,15 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({
                   <div className="absolute top-2 left-2 bg-slate-900/90 backdrop-blur-sm text-[10px] font-mono text-cyan-300 px-2 py-0.5 rounded border border-slate-800">
                     SKU: {product.sku}
                   </div>
-                  <div className="absolute top-2 right-2 bg-emerald-950/90 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-800/60">
-                    {product.stock > 0 ? `${product.stock} In Stock` : 'Backorder'}
-                  </div>
+                  {product.stock > 0 ? (
+                    <div className="absolute top-2 right-2 bg-emerald-950/90 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-800/60">
+                      {product.stock} In Stock
+                    </div>
+                  ) : (
+                    <div className="absolute top-2 right-2 bg-rose-950/90 text-rose-300 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-800/60">
+                      Out of Stock
+                    </div>
+                  )}
                 </div>
 
                 {/* Info */}
@@ -167,7 +173,8 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => onAddToCart?.(product)}
-                    className="py-2.5 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-xs rounded-xl transition-colors flex items-center justify-center space-x-1.5 shadow-sm"
+                    disabled={product.stock === 0}
+                    className="py-2.5 bg-cyan-400 hover:bg-cyan-300 disabled:bg-slate-700 disabled:text-slate-400 text-slate-950 font-bold text-xs rounded-xl transition-colors flex items-center justify-center space-x-1.5 shadow-sm disabled:cursor-not-allowed"
                   >
                     <ShoppingCart className="w-3.5 h-3.5" />
                     <span>Add to Cart</span>

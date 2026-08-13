@@ -27,6 +27,8 @@ interface AdminDashboardProps {
   onUpdateOrderStatus?: (orderId: string, status: any) => void;
   onOpenUploadCertModal?: () => void;
   onAddProductSuccess?: (product: Product) => void;
+  onUpdateProductSuccess?: (product: Product) => void;
+  onDeleteProductSuccess?: (productId: string) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -39,7 +41,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   auditLogs = [],
   onUpdateOrderStatus,
   onOpenUploadCertModal,
-  onAddProductSuccess
+  onAddProductSuccess,
+  onUpdateProductSuccess,
+  onDeleteProductSuccess
 }) => {
   const [activeAdminTab, setActiveAdminTab] = useState<'orders' | 'quotes' | 'inventory' | 'compliance' | 'audit' | 'users' | 'analytics'>('inventory');
   
@@ -140,10 +144,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
   const totalRevenue = (orders || []).reduce((sum, o) => sum + o.totalBDT, 0);
 
-  const handleCreateProduct = async (e: React.FormEvent) => {
+  
+  const handleEditProductClick = (product: Product) => {
+    setEditingProductId(product.id);
+    setProdName(product.name);
+    setProdCategory(product.category);
+    setProdPriceBDT(product.priceBDT.toString());
+    setProdDescription(product.description || '');
+    setProdSeoKeywords(product.seoKeywords || '');
+    setProdStock(product.stock.toString());
+    setProdOrigin(product.origin || '');
+    setProdWarranty(product.warranty || '');
+    setProdImage(product.image || '');
+    setShowProductModal(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+  };
+
+  const handleDeleteProduct = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/products/${id}`, {
+        method: 'DELETE',
+        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) } as Record<string, string>
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Failed to delete');
+      if (onDeleteProductSuccess) onDeleteProductSuccess(id);
+    } catch (err: any) {
+      alert('Delete failed: ' + err.message);
+    }
+  };
+
+  const handleSubmitProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -151,8 +189,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/products', {
-        method: 'POST',
+      const url = editingProductId ? `/api/products/${editingProductId}` : '/api/products';
+      const method = editingProductId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -163,7 +204,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           priceBDT: parseFloat(prodPriceBDT) || 0,
           description: prodDescription,
           seoKeywords: prodSeoKeywords,
-          stock: parseInt(prodStock, 10) || 10,
+          stock: parseInt(prodStock, 10) || 0,
           origin: prodOrigin,
           warranty: prodWarranty,
           image: prodImage || undefined
@@ -172,30 +213,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to upload product');
+        throw new Error(data.message || 'Failed to save product');
       }
 
-      setSuccessMsg(`Product "${data.product.name}" uploaded successfully with SEO keywords!`);
-      if (onAddProductSuccess) {
-        onAddProductSuccess(data.product);
+      setSuccessMsg(`Product "${data.product.name}" ${editingProductId ? 'updated' : 'uploaded'} successfully!`);
+      
+      if (editingProductId) {
+        if (onUpdateProductSuccess) onUpdateProductSuccess(data.product);
+      } else {
+        if (onAddProductSuccess) onAddProductSuccess(data.product);
       }
 
-      // Reset form
       setTimeout(() => {
         setShowProductModal(false);
+        setEditingProductId(null);
         setProdName('');
         setProdPriceBDT('');
         setProdDescription('');
         setProdSeoKeywords('');
         setSuccessMsg('');
-      }, 1200);
+      }, 1500);
 
     } catch (err: any) {
-      setErrorMsg(err.message || 'Upload failed');
+      setErrorMsg(err.message || 'An error occurred during submission.');
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="bg-slate-950 min-h-screen text-slate-100 py-10">
@@ -372,6 +417,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <button
                 onClick={() => {
+                  setEditingProductId(null);
+                  setProdName('');
+                  setProdPriceBDT('');
+                  setProdDescription('');
+                  setProdSeoKeywords('');
+                  setProdStock('10');
+                  setProdOrigin('Shenzhen Direct');
+                  setProdWarranty('1 Year BTRC Approved Warranty');
+                  setProdImage('');
                   setShowProductModal(true);
                   setErrorMsg('');
                   setSuccessMsg('');
@@ -393,6 +447,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <th className="p-3">SEO Keywords</th>
                     <th className="p-3">Stock Level</th>
                     <th className="p-3">Unit Cost (BDT)</th>
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80">
@@ -409,7 +464,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </td>
                       <td className="p-3 font-bold text-emerald-400">{p.stock} units</td>
                       <td className="p-3 text-slate-200 font-mono">৳{p.priceBDT.toLocaleString('en-IN')}</td>
+                      <td className="p-3 text-right space-x-2">
+                        <button 
+                          onClick={() => handleEditProductClick(p)} 
+                          className="px-2 py-1 bg-slate-800 text-cyan-400 hover:text-white rounded text-[10px] font-bold"
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteProduct(p.id, p.name)} 
+                          className="px-2 py-1 bg-rose-950/50 border border-rose-900/50 text-rose-400 hover:bg-rose-900 hover:text-white rounded text-[10px] font-bold"
+                        >
+                          Del
+                        </button>
+                      </td>
                     </tr>
+
                   ))}
                 </tbody>
               </table>
@@ -424,7 +494,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               
               <div className="flex justify-between items-center border-b border-slate-800 pb-3">
                 <div>
-                  <h3 className="text-lg font-black text-white">নতুন প্রোডাক্ট আপলোড • Upload Product</h3>
+                  <h3 className="text-lg font-black text-white">{editingProductId ? "প্রোডাক্ট আপডেট • Edit Product" : "নতুন প্রোডাক্ট আপলোড • Upload Product"}</h3>
                   <p className="text-xs text-slate-400">Specify exactly what you want to sell, the category, pricing, and SEO keywords.</p>
                 </div>
                 <button
@@ -447,7 +517,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               )}
 
-              <form onSubmit={handleCreateProduct} className="space-y-3">
+              <form onSubmit={handleSubmitProduct} className="space-y-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Product Name (প্রোডাক্ট এর নাম) *</label>
                   <input
@@ -564,7 +634,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   disabled={loading}
                   className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-md mt-2"
                 >
-                  {loading ? 'Publishing Product & Updating SEO...' : 'প্রোডাক্ট ডাটাবেজে আপলোড করুন (Publish Product)'}
+                  {loading ? 'Publishing Product & Updating SEO...' : '{editingProductId ? "আপডেট করুন (Update Product)" : "প্রোডাক্ট ডাটাবেজে আপলোড করুন (Publish Product)"}'}
                 </button>
               </form>
 

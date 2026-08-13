@@ -579,6 +579,8 @@ export default function App() {
             auditLogs={auditLogs} 
             onUpdateOrderStatus={handleUpdateOrderStatus} 
             onAddProductSuccess={(newProd) => setProducts(prev => [newProd, ...prev])}
+            onUpdateProductSuccess={(updatedProd) => setProducts(prev => prev.map(p => p.id === updatedProd.id ? updatedProd : p))}
+            onDeleteProductSuccess={(productId) => setProducts(prev => prev.filter(p => p.id !== productId))}
           />
         );
 

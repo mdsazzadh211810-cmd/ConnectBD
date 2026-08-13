@@ -205,6 +205,30 @@ class Database {
     this.save();
   }
 
+  public updateProduct(id: string, updates: Partial<Product>) {
+    const p = this.findProductById(id);
+    if (p) {
+      Object.assign(p, updates);
+      if (updates.stock !== undefined) {
+        p.inStock = p.stock > 0;
+      }
+      this.save();
+      return p;
+    }
+    return undefined;
+  }
+
+  public deleteProduct(id: string) {
+    const idx = this.data.products.findIndex(p => p.id === id);
+    if (idx !== -1) {
+      this.data.products.splice(idx, 1);
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+
   public updateProductStock(id: string, quantityToDeduct: number): boolean {
     const p = this.findProductById(id);
     if (p) {

@@ -100,6 +100,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Login failed. Please check your credentials and verification code.');
       }
+      if (data.token) localStorage.setItem('token', data.token);
 
       setSuccessMessage('Login successful!');
       setTimeout(() => {

@@ -110,6 +110,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({
                   <img
                     src={product.image}
                     alt={product.name}
+                    referrerPolicy="no-referrer"
                     className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
                   />
                   <div className="absolute top-2 left-2 bg-slate-900/90 backdrop-blur-sm text-[10px] font-mono text-cyan-300 px-2 py-0.5 rounded border border-slate-800">
@@ -198,7 +199,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({
 
               <div className="flex items-start space-x-4">
                 <div className="w-20 h-20 bg-slate-950 rounded-xl p-2 border border-slate-800 shrink-0 flex items-center justify-center">
-                  <img src={activeSpecProduct.image} alt={activeSpecProduct.name} className="max-h-full max-w-full object-contain" />
+                  <img src={activeSpecProduct.image} alt={activeSpecProduct.name} referrerPolicy="no-referrer" className="max-h-full max-w-full object-contain" />
                 </div>
                 <div>
                   <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-wider">{activeSpecProduct.sku}</span>

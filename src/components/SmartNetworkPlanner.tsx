@@ -49,9 +49,13 @@ export const SmartNetworkPlanner: React.FC<SmartNetworkPlannerProps> = ({
     setPlan(null);
 
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/planner', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        } as Record<string, string>,
         body: JSON.stringify({
           location,
           customerType,

@@ -57,7 +57,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const fetchUsers = async () => {
     setIsFetchingUsers(true);
     try {
-      const res = await fetch('/api/admin/users');
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/admin/users', {
+        headers: (token ? { 'Authorization': `Bearer ${token}` } : {}) as Record<string, string>
+      });
       const data = await res.json();
       if (data.users) setSystemUsers(data.users);
     } catch (err) {
@@ -70,9 +73,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleRoleChange = async (userId: string, newRole: string) => {
     setUpdatingUserId(userId);
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(`/api/admin/users/${userId}/role`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        } as Record<string, string>,
         body: JSON.stringify({ role: newRole })
       });
       const data = await res.json();
@@ -143,9 +150,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setLoading(true);
 
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch('/api/products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        } as Record<string, string>,
         body: JSON.stringify({
           name: prodName,
           category: prodCategory,

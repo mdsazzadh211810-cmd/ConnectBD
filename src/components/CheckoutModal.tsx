@@ -39,9 +39,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const handlePlaceOrder = async () => {
     setIsSubmitting(true);
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        } as Record<string, string>,
         body: JSON.stringify({
           items: cartItems,
           deliveryAddress: {

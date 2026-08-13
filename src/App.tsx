@@ -90,7 +90,10 @@ export default function App() {
 
   const fetchSession = async () => {
     try {
-      const res = await fetch('/api/auth/me');
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/auth/me', {
+        headers: (token ? { 'Authorization': `Bearer ${token}` } : {}) as Record<string, string>
+      });
       const data = await res.json();
       if (data.authenticated && data.user) {
         setCurrentUser(data.user);
@@ -140,11 +143,14 @@ export default function App() {
 
   const syncAuthenticatedData = async () => {
     try {
+      const token = localStorage.getItem('token');
+      const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+
       const [ordRes, qteRes, tktRes, jobRes] = await Promise.all([
-        fetch('/api/orders'),
-        fetch('/api/quotes'),
-        fetch('/api/tickets'),
-        fetch('/api/technician/jobs')
+        fetch('/api/orders', { headers }),
+        fetch('/api/quotes', { headers }),
+        fetch('/api/tickets', { headers }),
+        fetch('/api/technician/jobs', { headers })
       ]);
 
       if (ordRes.ok) {
@@ -177,9 +183,13 @@ export default function App() {
   // Switch Persona Role Handler via Backend Route
   const handleSwitchRole = async (role: UserRole) => {
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch('/api/auth/switch-role', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        } as Record<string, string>,
         body: JSON.stringify({ role })
       });
       const data = await res.json();
@@ -204,6 +214,7 @@ export default function App() {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch (e) {}
+    localStorage.removeItem('token');
     setCurrentUser({ id: "guest", name: "Guest User", email: "", role: "customer", verified: false });
     setShowGatewayPortal(true);
     setActiveTab('home');
@@ -297,9 +308,13 @@ export default function App() {
   // Submit Custom Quote Request
   const handleSubmitQuote = async (quoteData: Partial<QuoteRequest>) => {
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch('/api/quotes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        } as Record<string, string>,
         body: JSON.stringify(quoteData)
       });
 
@@ -337,9 +352,13 @@ export default function App() {
   // Admin / Operations Handlers
   const handleUpdateOrderStatus = async (orderId: string, status: Order['status']) => {
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(`/api/admin/orders/${orderId}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        } as Record<string, string>,
         body: JSON.stringify({ status })
       });
       const data = await res.json();
@@ -356,9 +375,13 @@ export default function App() {
 
   const handleUpdateJobStatus = async (jobId: string, status: TechnicianJob['status'], report?: string) => {
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch('/api/technician/update', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        } as Record<string, string>,
         body: JSON.stringify({ jobId, status, technicianReport: report })
       });
       const data = await res.json();
@@ -382,9 +405,13 @@ export default function App() {
 
   const handleCreateSupportTicket = async (subject: string, category: SupportTicket['category'], text: string) => {
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch('/api/tickets', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        } as Record<string, string>,
         body: JSON.stringify({ subject, category, message: text })
       });
       const data = await res.json();

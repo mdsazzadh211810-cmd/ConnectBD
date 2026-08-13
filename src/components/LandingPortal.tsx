@@ -119,6 +119,7 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Admin authentication failed');
       }
+      if (data.token) localStorage.setItem('token', data.token);
 
       setSuccessMessage('Admin authentication verified! Access granted.');
       setTimeout(() => {
@@ -225,6 +226,7 @@ export const LandingPortal: React.FC<LandingPortalProps> = ({
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'ইমেইল, কোড অথবা পাসওয়ার্ড ভুল হয়েছে।');
       }
+      if (data.token) localStorage.setItem('token', data.token);
 
       setSuccessMessage('সফলভাবে লগইন হয়েছে! ওয়েবসাইট ও প্যানেলে প্রবেশ করা হচ্ছে...');
       setTimeout(() => {
